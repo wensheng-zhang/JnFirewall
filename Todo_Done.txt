@@ -1,1 +1,20 @@
-test share git repository
+1. 搭建了3台虚拟机（Ubuntu16.04、Minimal CentOS7_1、Minimal CentOS7_2）
+	Ubuntu : 外部访问的机器
+		=> 设置了外网IP地址(192.168.0.222)，并对内网机器的访问route到CentOS7_1中【route add -net 10.1.0.0/24 gw 192.168.0.225 dev ens33】
+	CentOS7_1 : 网络防火墙
+		=> 通过添加了两个网络适配器的方式，设置了外网IP地址(192.168.0.225),和内网IP地址(10.1.0.2)【这个IP地址是如何设定的，还未知】.
+	CentOS7_2 : 内网的机器
+		=> 设置了内网IP地址(10.1.0.3)，并将其网关设置为CentOS7_1的内网IP地址(10.1.0.2)
+   以上，外网地址采用了桥接方式、内网采用了仅主机模式，三台机器可以互相通信。
+
+2. 在CentOS7_1上搭建了mini_httpd,并且在该机器上开通的tcp相关接口，以便于访问mini_httpd的服务端口（8080）
+	iptables -t filter -I INPUT -p tcp --dport 8080 -j ACCEPT
+	【注意：此处使用“-I”选项；如果使用“-A”，会使target添加到链的最底层,而系统原来存在的最底层的target是REJECT的，导致添加的目标不能被执行】
+
+3. CGI使用
+	下载Cgi源码：http://www.boutell.com/cgic/cgic207.tar.gz 进行make、make install
+	将编译得到的*.cgi存放到conf配置文件指定的路径中，通过浏览器指到该页面，就可以正常加载cgi了
+	由于该库存在windows的版本，将windows版现在到windows机器上，进行编码更方便。
+
+4. 利用c++程序，调用命令行/脚本
+	测试使用popen的方式可以执行，并能得到执行的每行结果
