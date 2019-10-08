@@ -26,8 +26,11 @@
 6. mini_httpd不能执行需要root权限的命令（使用popen时）
 	需要进行以下几方面的修改：
 	（1）修改mini_httpd的代码，进行编译及install。其中的默认bin和lib路径没有完全包括使用的系统【https://blog.csdn.net/ygl931/article/details/77604291】
-		①#defineCGI_PATH "/usr/local/bin:/usr/ucb:/bin:/usr/bin"
-		=> #defineCGI_PATH "/usr/local/bin:/usr/ucb:/bin:/usr/bin:/usr/sbin:/sbin"
-		②#defineCGI_LD_LIBRARY_PATH "/usr/local/lib:/usr/lib"
-		=>#defineCGI_LD_LIBRARY_PATH "/usr/local/lib:/usr/lib:/lib"
+		①#define CGI_PATH "/usr/local/bin:/usr/ucb:/bin:/usr/bin"
+		=>#define CGI_PATH "/usr/local/bin:/usr/ucb:/bin:/usr/bin:/usr/sbin:/sbin"
+		②#define CGI_LD_LIBRARY_PATH "/usr/local/lib:/usr/lib"
+		=>#define CGI_LD_LIBRARY_PATH "/usr/local/lib:/usr/lib:/lib"
 	（2）需要将mini_httd.conf进行修改，将user=root写入到配置文件中【或者启动mini_httpd　通过追加-u指定用户的方式】
+
+7. mini_httpd_v1.30 Http post 服务器主动断开连接
+	将版本退回1.19问题不复现
