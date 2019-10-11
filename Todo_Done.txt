@@ -34,3 +34,11 @@
 
 7. mini_httpd_v1.30 Http post 服务器主动断开连接
 	将版本退回1.19问题不复现
+
+8. U盘安装CentOS7不成功，提示：/dev/root does not exist解决方案
+	https://blog.csdn.net/aoshilang2249/article/details/50436603
+	2、进入安装界面时，按下e键
+	将vmlinuz initrd=initrd.img inst.stage2=hd:LABEL=CentOS\x207\x20x86_64 rd.live.check quiet
+	更改为（即更改inst.stage2=hd:后面的内容即可）
+	vmlinuz initrd=initrd.img inst.stage2=hd:/dev/sdb4:/ quiet
+
