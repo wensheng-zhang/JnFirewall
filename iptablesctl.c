@@ -10,8 +10,10 @@
 
 // 从防火墙取上的规则
 typedef struct _TARGET_RULE{
+	int seqNo;
 	char target[64];
 	char protocal[16];
+	char cltip[32];
 	char srcip[32];
 	unsigned short srcport;
 	char srcmac[32];
@@ -42,12 +44,13 @@ int Protocal();
 int PktProc();
 int IsValidIPV4(const char* ipv4);
 int IsValidMac(const char* mac);
-void DisplayFORWARD();
+void DisplayPREROUTING();
 int GetTargetRule(char *line, TARGET_RULE *ruleBuf);
 void QueryNICs(void);
 void QueryRules(void);
 int GetUserInputData(USER_RULE *userRule);
 int AddTarget(const USER_RULE *target);
+void SavePermanently();
 
 
 int cgiMain() {
@@ -55,16 +58,16 @@ int cgiMain() {
 	cgiHeaderContentType("text/html;charset=utf-8\n");
 	/* Top of the page */
 	fprintf(cgiOut, "<HTML><HEAD>\n");
-	fprintf(cgiOut, "<TITLE>iptables control</TITLE></HEAD>\n");
-	fprintf(cgiOut, "<BODY><H1>iptables control</H1>\n");
-	fLog = fopen("/tmp/log", "a");
-	/* Now show the form */
-    //fprintf(fLog, "fopen\n");
+	fprintf(cgiOut, "<TITLE>端口映射</TITLE></HEAD>\n");
+	fprintf(cgiOut, "<BODY><H1>端口映射</H1>\n");
+	fLog = fopen("/tmp/log", "w");
     QueryNICs();
+	fprintf(fLog, "QueryNICs finish.\n");
+    /* Now show the form */
 	ShowForm();
 	/* Finish up the page */
 	fprintf(cgiOut, "</BODY></HTML>\n");
-	//fprintf(fLog, "HTML End!!!\n");
+	fprintf(fLog, "HTML End!!!\n");
 	fclose(fLog);
 	return 0;
 }
@@ -191,13 +194,14 @@ void ShowForm()
 		// delete target
 	} else if (cgiFormSubmitClicked("save") == cgiFormSuccess) {
 		// permanently preserve
+		SavePermanently();
 	}
 	
 	// (4)规则列表
 	fprintf(cgiOut, "<p>\n");
 	
-	// 显示Forward的列表
-	DisplayFORWARD();
+	// 显示PREROUTING的列表
+	DisplayPREROUTING();
 	fprintf(cgiOut, "<p>\n");
 	fprintf(cgiOut, "<input type=\"submit\" name=\"delete\" value=\"删除\">\n");
 
@@ -262,7 +266,7 @@ int IsValidMac(const char* mac){
 }
 
 
-void DisplayFORWARD() {
+void DisplayPREROUTING() {
 	// 显示表头
 	
 	// 显示内容
@@ -274,11 +278,15 @@ int GetTargetRule(char *line, TARGET_RULE *ruleBuf)
 {
 	if (NULL == line || NULL == ruleBuf)
 		return -1;
-//1      2                   3      4                 5     6    7   8    9          10   
-//num    pkts                bytes  target            prot  opt  in  out  source     destination
-//1      0                   0      ACCEPT            all   --   *   *    0.0.0.0/0  0.0.0.0/0    ctstate   RELATED,ESTABLISHED
+//# iptables -t nat -nvL PREROUTING --line-number
+//Chain PREROUTING (policy ACCEPT 5232 packets, 601K bytes)
+//num   pkts bytes target     prot opt in     out     source               destination
+/*1		   2 	3	4			5	6  7	  8			9					10					11	12		13*/
+//1        4   208 DNAT       tcp  --  *      *       0.0.0.0/0            192.168.0.78         tcp dpt:80 to:10.1.0.5:8080
+
 	char delims[] = " ";
     char *result = NULL;
+	char *dst = NULL;
 	char *find = NULL;
 	int i = 0;
 	int j = 0;
@@ -287,12 +295,27 @@ int GetTargetRule(char *line, TARGET_RULE *ruleBuf)
 	char rmlinebreak[32] = {0};  // 删除换行符
     result = strtok(line, delims);
     while( result != NULL ){
-		++i;
-		switch (i){
+		switch (++i){
+			case 1: ruleBuf->seqNo = atoi(result); break;
 			case 4: strncpy(ruleBuf->target, result, strlen(result)); break;
 			case 5: strncpy(ruleBuf->protocal, result, strlen(result)); break;
-			case 9: strncpy(ruleBuf->srcip, result, strlen(result)); break;
-			case 10:{
+			case 9: strncpy(ruleBuf->cltip, result, strlen(result)); break;
+			case 10: strncpy(ruleBuf->srcip, result, strlen(result)); break;
+			case 12: {
+					find = strstr(result, "dpt:");
+					if (find != NULL)
+					{
+						memset(port, 0, 8);
+						count = 0;
+						while ( *(find + 4 + count)>= '0' &&  *(find + 4 + count) <= '9')
+							++count;
+						for (j = 0; j < count; j++)
+							port[j] = *(find + 4 +j);
+						ruleBuf->srcport = atoi(port);
+					}
+					break;
+				}
+			case 13: {
 					j = 0;
 					while(j < strlen(result)){
 						if (*(result + j) == '\n'){
@@ -302,34 +325,20 @@ int GetTargetRule(char *line, TARGET_RULE *ruleBuf)
 						rmlinebreak[j] = *(result + j);
 						++j;
 					}	 
-					strncpy(ruleBuf->dstip, rmlinebreak, strlen(rmlinebreak)); break;
+					dst = strtok(rmlinebreak, ":");
+					j = 0;
+					while (dst != NULL) {
+						switch (j++) {
+						    case 0: break;
+							case 1: strncpy(ruleBuf->dstip, dst, strlen(dst)); break;
+							case 2: ruleBuf->dstport = atoi(dst); break;
+							default: break;
+                        }
+						dst = strtok(NULL, ":");
+					}
+					break;
 				}
-			default:{		
-				find = strstr(result, "spt:");
-				if (find != NULL) 
-				{
-					memset(port, 0, 8);
-					count = 0;
-					while ( *(find + 4 + count)>= '0' &&  *(find + 4 + count) <= '9')
-						++count;
-					for (j = 0; j < count; j++)
-						port[j] = *(find + 4 +j);
-					ruleBuf->srcport = atoi(port);
-				}
-				
-				find = strstr(result, "dpt:");
-				if (find != NULL) 
-				{
-					memset(port, 0, 8);
-					count = 0;			
-					while ( *(find + 4 + count)>= '0' &&  *(find + 4 + count) <= '9')
-						++count;
-					for (j = 0; j < count; j++)
-						port[j] = *(find + 4 +j);
-					ruleBuf->dstport = atoi(port);
-				}
-				break;
-			}// default
+			default: break;
 		}// switch
 		result = strtok( NULL, delims );
     }// while( result != NULL )
@@ -346,7 +355,7 @@ void QueryNICs(void){
 	char sysCommand[] = "ifconfig -a -s | column -t";
 	int i = 0;
 	if((fp = popen(sysCommand, "r")) == NULL){
-        fprintf(fLog, "%s ifconfig command is null.\n", __FUNCTION__);
+        fprintf(fLog, "%s ifconfig result is null.\n", __FUNCTION__);
         return;
 	}
     fprintf(fLog, "%s ifconfig popen success.\n", __FUNCTION__);
@@ -372,26 +381,31 @@ void QueryRules(void){
     FILE *fp;
 	int i = 0; 
 	int j = 0;
-    char sysCommand[] = "iptables --line-numbers -nvL FORWARD | column -t";
+    char sysCommand[] = "iptables -t nat -nvL PREROUTING --line-number";
 	TARGET_RULE targetRules[64];
 	
     if((fp = popen(sysCommand, "r")) == NULL){
+		fprintf(fLog, "%s iptables PREROUTING fail.\n", __FUNCTION__);
         return;
 	}
 	
 	memset(targetRules, 0, 64*sizeof(TARGET_RULE));
+    fprintf(fLog, "%s iptables Prerouting success.\n", __FUNCTION__);
+    fflush(fLog);
 	while ((fgets(line, sizeof(line)-1, fp) != NULL)&& (i < 64 + 2)) {
 		if (i < 2) { // 前2行为表头
-			++i;
-			continue;
-		}	
+            i++;continue;
+        }
 		if (GetTargetRule(line, &(targetRules[i-2])) == 0){
 			++i;
 		}
 	}
-	for (j = 0; j < i-2; j++){
+    fprintf(fLog, "%s All rules is gotted.\n", __FUNCTION__);
+	for (j = 0; j < i-2 && i > 2; j++){
+		fprintf(cgiOut, "%d,\n", targetRules[j].seqNo);
 		fprintf(cgiOut, "%s,\n", targetRules[j].target);
 		fprintf(cgiOut, "%s,\n", targetRules[j].protocal);
+		fprintf(cgiOut, "%s,\n", targetRules[j].cltip);
 		fprintf(cgiOut, "%s,\n", targetRules[j].srcip);
 		fprintf(cgiOut, "%d,\n", targetRules[j].srcport);
 		fprintf(cgiOut, "%s,\n", targetRules[j].srcmac);
@@ -460,5 +474,16 @@ int AddTarget(const USER_RULE *target){
 
 	return 0;
 }
+
+void SavePermanently() {
+    FILE *fp = NULL;
+
+	char sysCommand[] = "service iptables save";
+	if((fp = popen(sysCommand, "r")) == NULL){
+        fprintf(fLog, "%s save iptables result is null.\n", __FUNCTION__);
+        return;
+	}
+}
+
 
 
