@@ -26,6 +26,7 @@ typedef struct _TARGET_RULE{
 typedef struct _USER_RULE{
 	int protocal;
 	int pktProc;
+	char cltip[32];
 	char srcip[32];
 	int srcport;
 	char srcmac[32];
@@ -73,7 +74,6 @@ int cgiMain() {
 }
 
 char *protocals[] = {
-	"all",
 	"tcp",
 	"udp",
 	"tdplit",
@@ -82,7 +82,8 @@ char *protocals[] = {
 	"esp",
 	"ah",
 	"sctp",
-	"mh"
+	"mh",
+    "all"
 };
 
 int Protocal() {
@@ -141,7 +142,10 @@ void ShowForm()
 	fprintf(cgiOut, "<input type=\"radio\" name=\"pktProc\" value=\"DROP\"checked>丢弃\n");
 	fprintf(cgiOut, "<input type=\"radio\" name=\"pktProc\" value=\"ACCEPT\">通过\n");
 
-	// (3)源和目的信息
+	// (3)客户端、源和目的信息
+	fprintf(cgiOut, "<p>\n");
+	fprintf(cgiOut, "客户端IP:\n");
+	fprintf(cgiOut, "<input name=\"cltip\" value=\"\">\n");
 	fprintf(cgiOut, "<p>\n");
 	fprintf(cgiOut, "源IP:\n");
 	fprintf(cgiOut, "<input name=\"srcip\" value=\"\">\n");
@@ -180,14 +184,13 @@ void ShowForm()
 		submission of the form. */
 	if (cgiFormSubmitClicked("add") == cgiFormSuccess) {
 		// Add target
-        fprintf(fLog, "add button \n");
 		GetUserInputData(&userRule);
-        fprintf(fLog, "add button getuserinputdata. \n");
-		fprintf(cgiOut, "protocal:%d, pktProc:%d, srcip:%s, srcport:%d, srcmac:%s, dstip:%s, dstport:%d, dstmac:%s\n",
-		    userRule.protocal, userRule.pktProc, userRule.srcip, userRule.srcport, userRule.srcmac,
-		    userRule.dstip, userRule.dstport, userRule.dstmac);
-		//fprintf(cgiOut, "<p>\n");
-		//AddTarget(const USER_RULE *target);
+	//	fprintf(cgiOut, "protocal:%d, pktProc:%d, cltip:%s, srcip:%s, srcport:%d, srcmac:%s, dstip:%s, dstport:%d, dstmac:%s\n",
+	//	    userRule.protocal, userRule.pktProc, userRule.cltip, userRule.srcip, userRule.srcport, userRule.srcmac,
+	//	    userRule.dstip, userRule.dstport, userRule.dstmac);
+		if(AddTarget(&userRule) != 0) {
+			fprintf(fLog, "%s AddTarget fail\n", __FUNCTION__);
+		}
 	} else if (cgiFormSubmitClicked("modify") == cgiFormSuccess) {
 		// Modify target
 	} else if (cgiFormSubmitClicked("delete") == cgiFormSuccess) {
@@ -333,7 +336,7 @@ int GetTargetRule(char *line, TARGET_RULE *ruleBuf)
 							case 1: strncpy(ruleBuf->dstip, dst, strlen(dst)); break;
 							case 2: ruleBuf->dstport = atoi(dst); break;
 							default: break;
-                        }
+				    	}
 						dst = strtok(NULL, ":");
 					}
 					break;
@@ -358,17 +361,17 @@ void QueryNICs(void){
         fprintf(fLog, "%s ifconfig result is null.\n", __FUNCTION__);
         return;
 	}
-    fprintf(fLog, "%s ifconfig popen success.\n", __FUNCTION__);
+    //fprintf(fLog, "%s ifconfig popen success.\n", __FUNCTION__);
 	memset(NICs, 0, sizeof(char)*NIC_NUM*NIC_NAME_LENTH_MAX);	
 	while (fgets(line, sizeof(line)-1, fp) != NULL && i < NIC_NUM){
         if (0 ==  i) {
              ++i;
              continue; // 第一行为表头
         }
-        fprintf(fLog, "%s line:%s\n", __FUNCTION__, line);
+        //fprintf(fLog, "%s line:%s\n", __FUNCTION__, line);
 		result = strtok(line, delims);
 		if (NULL != result && strcmp(result, "lo") != 0){
-            fprintf(fLog, "%s NIC:%d, Name:%s\n", __FUNCTION__, i, result);
+            //fprintf(fLog, "%s NIC:%d, Name:%s\n", __FUNCTION__, i, result);
 			strncpy(NICs[i-1], result, strlen(result));
 			++i;
 		}
@@ -400,7 +403,6 @@ void QueryRules(void){
 			++i;
 		}
 	}
-    fprintf(fLog, "%s All rules is gotted.\n", __FUNCTION__);
 	for (j = 0; j < i-2 && i > 2; j++){
 		fprintf(cgiOut, "%d,\n", targetRules[j].seqNo);
 		fprintf(cgiOut, "%s,\n", targetRules[j].target);
@@ -425,10 +427,13 @@ int GetUserInputData(USER_RULE *userRule){
 	}
 
 	userRule->protocal = Protocal();
-    //fprintf(fLog, "sel protocal:%d\n",userRule->protocal);	
+    //fprintf(fLog, "sel protocal:%d\n",userRule->protocal);
     userRule->pktProc = PktProc();
     //fprintf(fLog, "sel pktProc:%d\n",userRule->pktProc);
-
+	if (cgiFormString("cltip", userRule->cltip, 32) != cgiFormSuccess){
+		fprintf(fLog, "%s cltip error.\n", __FUNCTION__);
+		return -1;
+	}
 	if (cgiFormString("srcip", userRule->srcip, 32) != cgiFormSuccess){
 		fprintf(fLog, "%s srcip error.\n", __FUNCTION__);
 		return -1;
@@ -437,10 +442,10 @@ int GetUserInputData(USER_RULE *userRule){
 		fprintf(fLog, "%s srcport error.\n", __FUNCTION__);
 		return -1;
 	}
-	if (cgiFormString("srcmac", userRule->srcmac, 32) != cgiFormSuccess){
+/*	if (cgiFormString("srcmac", userRule->srcmac, 32) != cgiFormSuccess){
 		fprintf(fLog, "%s srcmac error.\n", __FUNCTION__);
 		return -1;
-	}
+	}*/
 	if (cgiFormString("dstip", userRule->dstip, 32) != cgiFormSuccess){
 		fprintf(fLog, "%s dstip error.\n", __FUNCTION__);
 		return -1;
@@ -449,30 +454,49 @@ int GetUserInputData(USER_RULE *userRule){
 		fprintf(fLog, "%s dstport error.\n", __FUNCTION__);
 		return -1;
 	}
-	if (cgiFormString("dstmac", userRule->dstmac, 32) != cgiFormSuccess){
+/*	if (cgiFormString("dstmac", userRule->dstmac, 32) != cgiFormSuccess){
 		fprintf(fLog, "%s dstmac error.\n", __FUNCTION__);
 		return -1;
-	}
+	}*/
 
 	return 0;
 }
 
 int AddTarget(const USER_RULE *target){
 	char command[128] = {0};
+	char cltip[32] = {0};
+	char srcip[32] = {0};
+    char line[N];
+	FILE *fp = NULL;
 	if (NULL == target 
-		|| 0 != IsValidIPV4(target->srcip) || 0 != IsValidIPV4(target->dstip)
+		|| 0 != IsValidIPV4(target->cltip)|| 0 != IsValidIPV4(target->srcip) || 0 != IsValidIPV4(target->dstip)
 		|| 0 >= target->srcport || 65535 < target->srcport
-		|| 0 >= target->dstport || 65535 < target->dstport
-		|| 0 != IsValidMac(target->srcmac) || 0 != IsValidMac(target->dstmac))
-	{
+		|| 0 >= target->dstport || 65535 < target->dstport) {
+//		|| 0 != IsValidMac(target->srcmac) || 0 != IsValidMac(target->dstmac)) {
 		fprintf(fLog, "%s param is invalid.\n", __FUNCTION__);
 		return -1;
 	}
-
-	sprintf(command, "iptables -t filter -I FORWARD -p %s -s %s -d %s --sport %d, --dport %d -j %s", 
-		protocals[target->protocal], target->srcip, target->dstip, target->srcport, target->dstport, pktProcs[target->pktProc]);
-
-	return 0;
+	if (strlen(target->cltip) != 0){
+		sprintf(cltip, "-s %s", target->cltip);
+	}
+	if (strlen(target->srcip) != 0){
+		sprintf(srcip, "-d %s", target->srcip);
+	}
+		
+//iptables -t nat -I PREROUTING -s 192.168.0.100 -d 192.168.0.78 -p tcp -m tcp --dport 8000 -j DNAT --to-destination 10.1.0.5:8080
+	sprintf(command, "iptables -t nat -I PREROUTING %s %s -p %s --dport %d -j DNAT --to-destination %s:%d", 
+		cltip, srcip, protocals[target->protocal], target->srcport, target->dstip, target->dstport);
+	fprintf(fLog, "%s command:%s\n", __FUNCTION__, command);
+	if((fp = popen(command, "r")) == NULL){
+        fprintf(fLog, "%s popen iptables fail.\n", __FUNCTION__);
+        return -1;
+	}else if (fgets(line, sizeof(line)-1, fp) != NULL){
+        fprintf(fLog, "%s execute iptables fail.\n", __FUNCTION__);
+        return -1;
+    }else{
+        sleep(1);
+	    return 0;
+    } 
 }
 
 void SavePermanently() {
