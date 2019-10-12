@@ -51,6 +51,7 @@ void QueryNICs(void);
 void QueryRules(void);
 int GetUserInputData(USER_RULE *userRule);
 int AddTarget(const USER_RULE *target);
+int DeleteTargets();
 void SavePermanently();
 
 
@@ -61,14 +62,13 @@ int cgiMain() {
 	fprintf(cgiOut, "<HTML><HEAD>\n");
 	fprintf(cgiOut, "<TITLE>端口映射</TITLE></HEAD>\n");
 	fprintf(cgiOut, "<BODY><H1>端口映射</H1>\n");
-	fLog = fopen("/tmp/log", "w");
+	fLog = fopen("/tmp/log", "a");
     QueryNICs();
 	fprintf(fLog, "QueryNICs finish.\n");
     /* Now show the form */
 	ShowForm();
 	/* Finish up the page */
 	fprintf(cgiOut, "</BODY></HTML>\n");
-	fprintf(fLog, "HTML End!!!\n");
 	fclose(fLog);
 	return 0;
 }
@@ -195,6 +195,9 @@ void ShowForm()
 		// Modify target
 	} else if (cgiFormSubmitClicked("delete") == cgiFormSuccess) {
 		// delete target
+		if (DeleteTargets() != 0) {
+			fprintf(fLog, "%s DeleteTargets fail\n", __FUNCTION__);
+		}
 	} else if (cgiFormSubmitClicked("save") == cgiFormSuccess) {
 		// permanently preserve
 		SavePermanently();
@@ -213,7 +216,6 @@ void ShowForm()
 	fprintf(cgiOut, "<input type=\"submit\" name=\"save\" value=\"保存\">\n");
 
 	fprintf(cgiOut, "</form>\n");
-	fprintf(fLog, "form end! \n");
 }
 
 int IsValidIPV4(const char* ipv4){
@@ -404,6 +406,7 @@ void QueryRules(void){
 		}
 	}
 	for (j = 0; j < i-2 && i > 2; j++){
+		fprintf(cgiOut, "<input type=\"checkbox\" name=\"rule\" value=\"%d\">\n", targetRules[j].seqNo);
 		fprintf(cgiOut, "%d,\n", targetRules[j].seqNo);
 		fprintf(cgiOut, "%s,\n", targetRules[j].target);
 		fprintf(cgiOut, "%s,\n", targetRules[j].protocal);
@@ -486,17 +489,96 @@ int AddTarget(const USER_RULE *target){
 //iptables -t nat -I PREROUTING -s 192.168.0.100 -d 192.168.0.78 -p tcp -m tcp --dport 8000 -j DNAT --to-destination 10.1.0.5:8080
 	sprintf(command, "iptables -t nat -I PREROUTING %s %s -p %s --dport %d -j DNAT --to-destination %s:%d", 
 		cltip, srcip, protocals[target->protocal], target->srcport, target->dstip, target->dstport);
-	fprintf(fLog, "%s command:%s\n", __FUNCTION__, command);
 	if((fp = popen(command, "r")) == NULL){
-        fprintf(fLog, "%s popen iptables fail.\n", __FUNCTION__);
+        fprintf(fLog, "%s %s=>popen fail.\n", __FUNCTION__, command);
         return -1;
 	}else if (fgets(line, sizeof(line)-1, fp) != NULL){
-        fprintf(fLog, "%s execute iptables fail.\n", __FUNCTION__);
+        fprintf(fLog, "%s %s=>execute iptables fail.\n", __FUNCTION__, command);
         return -1;
     }else{
+        fprintf(fLog, "%s %s=>execute iptables success.\n", __FUNCTION__, command);
         sleep(1);
 	    return 0;
     } 
+}
+
+int DeleteTargets(){
+	char line[N];
+	const int checkboxValueLen = 8;
+    FILE *fp = NULL;
+	int i = 0; 
+	int count = 0;
+	int result;
+	int invalid;
+    char sysCommand[64] = { 0 };
+    sprintf(sysCommand, "%s", "iptables -t nat -nvL PREROUTING --line-number");
+	
+    if((fp = popen(sysCommand, "r")) == NULL){
+		fprintf(fLog, "%s iptables PREROUTING fail.\n", __FUNCTION__);
+		pclose(fp);
+        return -1;
+	}
+	
+	while (fgets(line, sizeof(line)-1, fp) != NULL) {
+		++count;
+	}
+	if (count < 3){
+		fprintf(fLog, "%s No target is in Chain PREROUTING\n", __FUNCTION__);
+		pclose(fp);
+		return -1;
+	}
+	
+    count -= 2;     //删除查询结果的前两行
+
+	int *deletedChoices = (int *)malloc(count * sizeof(int));
+	memset(deletedChoices, 0, count * sizeof(int));
+	
+	char **lstTargets = (char**)malloc(count * sizeof(char*));
+	for (i = 0; i < count; ++i){
+		lstTargets[i] = (char*) malloc(checkboxValueLen * sizeof(char));
+		memset(lstTargets[i], 0, checkboxValueLen * sizeof(char) );
+		sprintf(lstTargets[i], "%d", i+1);
+	}
+	
+	result = cgiFormCheckboxMultiple("rule", lstTargets, count, 
+		deletedChoices, &invalid);
+	// 进行删除操作
+	do{
+		if (result == cgiFormNotFound) {
+			fprintf(fLog, "%s Nothing is selected.\n", __FUNCTION__);
+			break;
+		} else {
+            fprintf(fLog, "%s Items of deleting is:", __FUNCTION__);
+            for (i = 0; i < count; ++i){
+                fprintf(fLog, " %d ", deletedChoices[i]);
+            }
+            fprintf(fLog, "\n");
+            fflush(fLog); 
+			for (i = count-1; i >= 0; --i){
+				if (1 == deletedChoices[i]){
+					memset(sysCommand, 0, 64);
+					sprintf(sysCommand, "iptables -t nat -D PREROUTING %d", i+1);
+					if((fp = popen(sysCommand, "r")) == NULL){
+						fprintf(fLog, "%s %s => popen fail.\n", __FUNCTION__, sysCommand);
+					} else if (fgets(line, sizeof(line)-1, fp) != NULL) {
+                        fprintf(fLog, "%s %s => execute commmand fail.\n", __FUNCTION__, sysCommand);
+                    } else {
+                        fprintf(fLog, "%s %s => execute commmand success.\n", __FUNCTION__, sysCommand);
+                    }                    
+				}
+			}
+		}		
+	}while (0);
+
+	for (i = 0; i < count; ++i){
+		free(lstTargets[i]);
+	}
+	free(lstTargets);
+	free(deletedChoices);
+
+	pclose(fp);
+
+    return 0;
 }
 
 void SavePermanently() {
