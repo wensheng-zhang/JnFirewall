@@ -124,16 +124,6 @@ void ShowForm()
 	for (i = 0; i < sizeof(protocals)/sizeof(char*); ++i){
 		fprintf(cgiOut, "<option value=\"%s\">%s\n", protocals[i], protocals[i]);
 	}
-	/*	fprintf(cgiOut, "<option value=\"all\">all\n");
-	fprintf(cgiOut, "<option value=\"tcp\">tcp\n");
-	fprintf(cgiOut, "<option value=\"udp\">udp\n");
-	fprintf(cgiOut, "<option value=\"tdplit\">udplit\n");
-	fprintf(cgiOut, "<option value=\"icmp\">icmp\n");
-	fprintf(cgiOut, "<option value=\"icmpv6\">icmpv6\n");
-	fprintf(cgiOut, "<option value=\"esp\">esp\n");
-	fprintf(cgiOut, "<option value=\"ah\">ah\n");
-	fprintf(cgiOut, "<option value=\"sctp\">sctp\n");
-	fprintf(cgiOut, "<option value=\"mh\">mh\n");*/
 	fprintf(cgiOut, "</select>\n");
 	fprintf(cgiOut, "<br>\n");
 
@@ -144,44 +134,46 @@ void ShowForm()
 
 	// (3)客户端、源和目的信息
 	fprintf(cgiOut, "<p>\n");
-	fprintf(cgiOut, "客户端IP:\n");
-	fprintf(cgiOut, "<input name=\"cltip\" value=\"\">\n");
+	fprintf(cgiOut, "<table border=\"1\">\n");
+	fprintf(cgiOut, "<tr>\n");
+	fprintf(cgiOut, "<td>客户端IP:</td>\n");
+	fprintf(cgiOut, "<td><input name=\"cltip\" value=\"\"></td>\n");
+	fprintf(cgiOut, "</tr>\n");
+	fprintf(cgiOut, "<tr>\n");
+	fprintf(cgiOut, "<td>源IP:</td>\n");
+	fprintf(cgiOut, "<td><input name=\"srcip\" value=\"\"></td>\n");
+	fprintf(cgiOut, "<td>源端口:</td>\n");
+	fprintf(cgiOut, "<td><input name=\"srcport\" value=\"\"></td>\n");
+	fprintf(cgiOut, "<td>源Mac:</td>\n");
+	fprintf(cgiOut, "<td><input name=\"srcmac\" value=\"\"></td>\n");
+	fprintf(cgiOut, "<td>源NIC:</td>\n");
+	fprintf(cgiOut, "<td><select name=\"protocal\">\n");
+	for (i = 0; strlen(NICs[i])>0 && i < NIC_NUM; ++i){
+		fprintf(cgiOut, "<option value=\"%s\">%s\n", NICs[i], NICs[i]);
+	}
+	fprintf(cgiOut, "</select></td>\n");
+	fprintf(cgiOut, "</tr>\n");
+	fprintf(cgiOut, "<tr>\n");
+	fprintf(cgiOut, "<td>目的IP:</td>\n");
+	fprintf(cgiOut, "<td><input name=\"dstip\" value=\"\"></td>\n");
+	fprintf(cgiOut, "<td>目的端口:</td>\n");
+	fprintf(cgiOut, "<td><input name=\"dstport\" value=\"\"></td>\n");
+	fprintf(cgiOut, "<td>目的Mac:</td>\n");
+	fprintf(cgiOut, "<td><input name=\"dstmac\" value=\"\"></td>\n");
+	fprintf(cgiOut, "<td>目的NIC:</td>\n");
+	fprintf(cgiOut, "<td><select name=\"protocal\">\n");
+	for (i = 0; strlen(NICs[i])>0 && i < NIC_NUM; ++i){
+		fprintf(cgiOut, "<option value=\"%s\">%s\n", NICs[i], NICs[i]);
+	}
+	fprintf(cgiOut, "</select></td>\n");	
+	fprintf(cgiOut, "</tr>\n");
+    fprintf(cgiOut, "</table>\n");
 	fprintf(cgiOut, "<p>\n");
-	fprintf(cgiOut, "源IP:\n");
-	fprintf(cgiOut, "<input name=\"srcip\" value=\"\">\n");
-	fprintf(cgiOut, "源端口:\n");
-	fprintf(cgiOut, "<input name=\"srcport\" value=\"\">\n");
-	fprintf(cgiOut, "源Mac:\n");
-	fprintf(cgiOut, "<input name=\"srcmac\" value=\"\">\n");
-	fprintf(cgiOut, "源NIC:\n");
-	fprintf(cgiOut, "<select name=\"protocal\">\n");
-	for (i = 0; strlen(NICs[i])>0 && i < NIC_NUM; ++i){
-		fprintf(cgiOut, "<option value=\"%s\">%s\n", NICs[i], NICs[i]);
-	}
-	fprintf(cgiOut, "</select>\n");	
-	fprintf(cgiOut, "<br>\n");
-	
-	fprintf(cgiOut, "目的IP:\n");
-	fprintf(cgiOut, "<input name=\"dstip\" value=\"\">\n");
-	fprintf(cgiOut, "目的端口:\n");
-	fprintf(cgiOut, "<input name=\"dstport\" value=\"\">\n");
-	fprintf(cgiOut, "目的Mac:\n");
-	fprintf(cgiOut, "<input name=\"dstmac\" value=\"\">\n");
-	fprintf(cgiOut, "目的NIC:\n");
-	fprintf(cgiOut, "<select name=\"protocal\">\n");
-	for (i = 0; strlen(NICs[i])>0 && i < NIC_NUM; ++i){
-		fprintf(cgiOut, "<option value=\"%s\">%s\n", NICs[i], NICs[i]);
-	}
-	fprintf(cgiOut, "</select>\n");	
-	fprintf(cgiOut, "<br>\n");
 
-	fprintf(cgiOut, "<p>\n");
 	fprintf(cgiOut, "<input type=\"submit\" name=\"add\" value=\"添加\">\n");
 	fprintf(cgiOut, "<input type=\"submit\" name=\"modify\" value=\"修改\">\n");
-	fprintf(cgiOut, "<br>\n");
+	fprintf(cgiOut, "<hr/>\n");
 
-	/* If a submit button has already been clicked, act on the 
-		submission of the form. */
 	if (cgiFormSubmitClicked("add") == cgiFormSuccess) {
 		// Add target
 		GetUserInputData(&userRule);
@@ -205,14 +197,11 @@ void ShowForm()
 	
 	// (4)规则列表
 	fprintf(cgiOut, "<p>\n");
-	
 	// 显示PREROUTING的列表
 	DisplayPREROUTING();
 	fprintf(cgiOut, "<p>\n");
 	fprintf(cgiOut, "<input type=\"submit\" name=\"delete\" value=\"删除\">\n");
-
-	fprintf(cgiOut, "<p>\n");
-	fprintf(cgiOut, "<p>\n");
+    fprintf(cgiOut, "<hr/>\n");
 	fprintf(cgiOut, "<input type=\"submit\" name=\"save\" value=\"保存\">\n");
 
 	fprintf(cgiOut, "</form>\n");
@@ -272,11 +261,26 @@ int IsValidMac(const char* mac){
 
 
 void DisplayPREROUTING() {
+	fprintf(cgiOut, "<table border=\"1\">\n");
 	// 显示表头
-	
+	fprintf(cgiOut, "<tr style=\"background-color:#00FF00\">\n");
+	fprintf(cgiOut, "<td> </td>\n");
+	fprintf(cgiOut, "<td>序号</td>\n");
+	fprintf(cgiOut, "<td>规则</td>\n");
+	fprintf(cgiOut, "<td>协议</td>\n");
+	fprintf(cgiOut, "<td>客户端IP</td>\n");
+	fprintf(cgiOut, "<td>源IP</td>\n");
+	fprintf(cgiOut, "<td>源端口</td>\n");
+	fprintf(cgiOut, "<td>源Mac</td>\n");
+	fprintf(cgiOut, "<td>源NIC</td>\n");
+	fprintf(cgiOut, "<td>目的IP</td>\n");
+	fprintf(cgiOut, "<td>目的端口</td>\n");
+	fprintf(cgiOut, "<td>目的Mac</td>\n");
+	fprintf(cgiOut, "<td>目的NIC</td>\n");
+	fprintf(cgiOut, "</tr>\n");
 	// 显示内容
 	QueryRules();
-	
+	fprintf(cgiOut, "</table>\n");
 }
 
 int GetTargetRule(char *line, TARGET_RULE *ruleBuf)
@@ -405,21 +409,24 @@ void QueryRules(void){
 			++i;
 		}
 	}
+	
 	for (j = 0; j < i-2 && i > 2; j++){
-		fprintf(cgiOut, "<input type=\"checkbox\" name=\"rule\" value=\"%d\">\n", targetRules[j].seqNo);
-		fprintf(cgiOut, "%d,\n", targetRules[j].seqNo);
-		fprintf(cgiOut, "%s,\n", targetRules[j].target);
-		fprintf(cgiOut, "%s,\n", targetRules[j].protocal);
-		fprintf(cgiOut, "%s,\n", targetRules[j].cltip);
-		fprintf(cgiOut, "%s,\n", targetRules[j].srcip);
-		fprintf(cgiOut, "%d,\n", targetRules[j].srcport);
-		fprintf(cgiOut, "%s,\n", targetRules[j].srcmac);
-		fprintf(cgiOut, "%s,\n", targetRules[j].dstip);
-		fprintf(cgiOut, "%d,\n", targetRules[j].dstport);
-		fprintf(cgiOut, "%s,\n", targetRules[j].dstmac);
-		fprintf(cgiOut, "<br>\n");
+		fprintf(cgiOut, "<tr>\n");
+		fprintf(cgiOut, "<td><input type=\"checkbox\" name=\"rule\" value=\"%d\"></td>\n", targetRules[j].seqNo);
+		fprintf(cgiOut, "<td>%d</td>\n", targetRules[j].seqNo);
+		fprintf(cgiOut, "<td>%s</td>\n", targetRules[j].target);
+		fprintf(cgiOut, "<td>%s</td>\n", targetRules[j].protocal);
+		fprintf(cgiOut, "<td>%s</td>\n", targetRules[j].cltip);
+		fprintf(cgiOut, "<td>%s</td>\n", targetRules[j].srcip);
+		fprintf(cgiOut, "<td>%d</td>\n", targetRules[j].srcport);
+		fprintf(cgiOut, "<td>%s</td>\n", targetRules[j].srcmac);
+		fprintf(cgiOut, "<td>%s</td>\n", "");
+		fprintf(cgiOut, "<td>%s</td>\n", targetRules[j].dstip);
+		fprintf(cgiOut, "<td>%d</td>\n", targetRules[j].dstport);
+		fprintf(cgiOut, "<td>%s</td>\n", targetRules[j].dstmac);
+		fprintf(cgiOut, "<td>%s</td>\n", "");
+		fprintf(cgiOut, "</tr>\n");			
 	}
-	fprintf(cgiOut, "<p>\n");
 	pclose(fp);
 }
 
@@ -583,13 +590,10 @@ int DeleteTargets(){
 
 void SavePermanently() {
     FILE *fp = NULL;
-
-	char sysCommand[] = "service iptables save";
+   
+	char sysCommand[] = "iptables-save > /etc/sysconfig/iptables";
 	if((fp = popen(sysCommand, "r")) == NULL){
         fprintf(fLog, "%s save iptables result is null.\n", __FUNCTION__);
         return;
-	}
+    }
 }
-
-
-
