@@ -29,7 +29,7 @@
 	https://blog.csdn.net/lixuyuan/article/details/6591807
 	①此处会编译错误(将错误行注释掉)
 	②需要进行以下几方面的修改：
-	  修改mini_httpd的代码，进行编译及install。其中的默认bin和lib路径没有完全包括使用的系统【https://blog.csdn.net/ygl931/article/details/77604291】
+	  修改mini_httpd的代码，进行编译及install。其中的默认bin和lib路径没有完全包括使用的系统
 		#define CGI_PATH "/usr/local/bin:/usr/ucb:/bin:/usr/bin"
 		=>#define CGI_PATH "/usr/local/bin:/usr/ucb:/bin:/usr/bin:/usr/sbin:/sbin"
 		#define CGI_LD_LIBRARY_PATH "/usr/local/lib:/usr/lib"
@@ -38,6 +38,8 @@
 	(4)下载cgic207进行编译
 	wget http://www.boutell.com/cgic/cgic207.tar.gz
 	tar -zxvf cgic207.tar.gz
+	编译产生错误进行修正：getline => get_line
+	然后make、make install
 	(5)安装vim
 	yum install vim
 	
@@ -59,7 +61,10 @@
 		将启动命令添加到/etc/rc.d/rc.local即可（在CentOS7中，默认rc.local是没有执行权限，需要添加执行权限）
 
 5、开发环境
-	将编写的程序编译的cgi，放置到mini_httpd设置的cgi路径下
+	(1)将编写的程序编译的cgi，放置到mini_httpd设置的cgi路径下
 	通过浏览器即可访问到该cgi(如：http://192.168.0.78:8080/cgi-bin/iptablesctl.cgi)
 	
-   
+	(2)在mini_httpd的config文件中的设置的dir路径下，放置起始页面"index.html"或"index.htm"或"index.xhtml"或"index.xht"或"Default.htm"或"index.cgi",
+	通过浏览器直接输入服务器地址，即可打开起始页面
+
+	(3)通过"htpasswd -c .htpasswd [username]" 可以创建授权文件，将生成的.htpasswd文件放置到index.html同目录下，请求显示index.html需要进行授权验证
