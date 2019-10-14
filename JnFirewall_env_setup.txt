@@ -1,0 +1,65 @@
+《防火墙主机环境构建》
+
+1、安装centos7 minimal版本
+	U盘安装存在问题，参考https://blog.csdn.net/aoshilang2249/article/details/50436603
+
+2、设置网卡参数（使用root用户）
+   (1)cd /etc/sysconfig/network-scripts(ifcfg-*相关文件就是网卡的配置文件)
+   (2)vi ifcfg-enp3s0(对应的网卡)
+   根据自己机器的环境，修改以下参数
+	>>>>>>>>>>>>>>>>
+	BOOTPROTO="static"
+	ONBOOT="yes"
+	IPADDRPADDR="192.168.0.78"
+	PREFIX="24"
+	GATEWAY="192.168.0.1"
+	DNS1="192.168.0.1"
+	IPV6_PRIVACY="no
+	<<<<<<<<<<<<<<<<<
+   设置完成之后，进行保存退出。
+   同理，设置其他网卡
+   (3) 重启网络服务systemctl restart network，确保能够上网
+
+3、安装相关软件
+	(1)需要安装网络工具模块
+	yum install net-tools
+	(2)安装gcc
+	yum -y install gcc gcc-c++ libstdc++-devel 
+	(3)mini_httpd的安装与配置(使用1.19版本，当前1.30版本不是太稳定)
+	https://blog.csdn.net/lixuyuan/article/details/6591807
+	①此处会编译错误(将错误行注释掉)
+	②需要进行以下几方面的修改：
+	  修改mini_httpd的代码，进行编译及install。其中的默认bin和lib路径没有完全包括使用的系统【https://blog.csdn.net/ygl931/article/details/77604291】
+		#define CGI_PATH "/usr/local/bin:/usr/ucb:/bin:/usr/bin"
+		=>#define CGI_PATH "/usr/local/bin:/usr/ucb:/bin:/usr/bin:/usr/sbin:/sbin"
+		#define CGI_LD_LIBRARY_PATH "/usr/local/lib:/usr/lib"
+		=>#define CGI_LD_LIBRARY_PATH "/usr/local/lib:/usr/lib:/lib"
+	  需要将mini_httd.conf进行修改，将user=root写入到配置文件中【或者启动mini_httpd　通过追加-u指定用户的方式】
+	(4)下载cgic207进行编译
+	wget http://www.boutell.com/cgic/cgic207.tar.gz
+	tar -zxvf cgic207.tar.gz
+	(5)安装vim
+	yum install vim
+	
+4、系统配置项
+	(1)将/etc/sysctl.conf中的net.ipv4.ip_forward = 1设置，并用sysctl -p命令生效
+	(2)系统自动启动iptables service
+		yum install -y iptables-services
+		#停止firewalld
+		systemctl stop firewalld
+		#禁止firewalld自动启动
+		systemctl disable firewalld
+		#启动iptables
+		systemctl start iptables
+		#将iptables设置为开机自动启动，以后即可通过iptables-service控制iptables服务
+		systemctl enable iptables
+	(3)将系统chain FORWARD修正
+		iptables -F FORWARD
+	(4)开机自动启动mini_httpd服务
+		将启动命令添加到/etc/rc.d/rc.local即可（在CentOS7中，默认rc.local是没有执行权限，需要添加执行权限）
+
+5、开发环境
+	将编写的程序编译的cgi，放置到mini_httpd设置的cgi路径下
+	通过浏览器即可访问到该cgi(如：http://192.168.0.78:8080/cgi-bin/iptablesctl.cgi)
+	
+   
