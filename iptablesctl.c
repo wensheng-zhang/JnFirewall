@@ -176,6 +176,7 @@ void ShowForm()
 
 	if (cgiFormSubmitClicked("add") == cgiFormSuccess) {
 		// Add target
+	    memset(&userRule, 0, sizeof(USER_RULE));
 		GetUserInputData(&userRule);
 	//	fprintf(cgiOut, "protocal:%d, pktProc:%d, cltip:%s, srcip:%s, srcport:%d, srcmac:%s, dstip:%s, dstport:%d, dstmac:%s\n",
 	//	    userRule.protocal, userRule.pktProc, userRule.cltip, userRule.srcip, userRule.srcport, userRule.srcmac,
@@ -210,7 +211,7 @@ void ShowForm()
 int IsValidIPV4(const char* ipv4){
 	int a,b,c,d;
 	char temp[31];
-	if (NULL == ipv4){	// 不设定ip地址 (即：0.0.0.0/0 anywhere)
+	if (NULL == ipv4 || strlen(ipv4) == 0){	// 不设定ip地址 (即：0.0.0.0/0 anywhere)
 		fprintf(fLog, "%s param is NULL.\n", __FUNCTION__);
 		return 0;
 	}	
@@ -441,8 +442,9 @@ int GetUserInputData(USER_RULE *userRule){
     userRule->pktProc = PktProc();
     //fprintf(fLog, "sel pktProc:%d\n",userRule->pktProc);
 	if (cgiFormString("cltip", userRule->cltip, 32) != cgiFormSuccess){
-		fprintf(fLog, "%s cltip error.\n", __FUNCTION__);
-		return -1;
+		//fprintf(fLog, "%s cltip error.\n", __FUNCTION__);
+		//return -1;
+		//If cgiFormString cltip is NOT success, cltip is set to NULL.
 	}
 	if (cgiFormString("srcip", userRule->srcip, 32) != cgiFormSuccess){
 		fprintf(fLog, "%s srcip error.\n", __FUNCTION__);
