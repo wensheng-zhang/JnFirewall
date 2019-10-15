@@ -432,7 +432,8 @@ void QueryRules(void){
 }
 
 int GetUserInputData(USER_RULE *userRule){
-	if (NULL == userRule){
+	int res;
+    if (NULL == userRule){
 		fprintf(fLog, "%s param is null.\n", __FUNCTION__);
 		return -1;
 	}
@@ -441,10 +442,10 @@ int GetUserInputData(USER_RULE *userRule){
     //fprintf(fLog, "sel protocal:%d\n",userRule->protocal);
     userRule->pktProc = PktProc();
     //fprintf(fLog, "sel pktProc:%d\n",userRule->pktProc);
-	if (cgiFormString("cltip", userRule->cltip, 32) != cgiFormSuccess){
-		//fprintf(fLog, "%s cltip error.\n", __FUNCTION__);
-		//return -1;
-		//If cgiFormString cltip is NOT success, cltip is set to NULL.
+    res = cgiFormString("cltip", userRule->cltip, 32);
+	if (res != cgiFormSuccess && res != cgiFormEmpty){
+		fprintf(fLog, "%s cltip error.\n", __FUNCTION__);
+		return -1;
 	}
 	if (cgiFormString("srcip", userRule->srcip, 32) != cgiFormSuccess){
 		fprintf(fLog, "%s srcip error.\n", __FUNCTION__);
