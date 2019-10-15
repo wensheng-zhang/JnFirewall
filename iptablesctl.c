@@ -128,9 +128,9 @@ void ShowForm()
 	fprintf(cgiOut, "<br>\n");
 
 	// (2)报文处理
-	fprintf(cgiOut, "报文处理:\n");
-	fprintf(cgiOut, "<input type=\"radio\" name=\"pktProc\" value=\"DROP\"checked>丢弃\n");
-	fprintf(cgiOut, "<input type=\"radio\" name=\"pktProc\" value=\"ACCEPT\">通过\n");
+	//fprintf(cgiOut, "报文处理:\n");
+	//fprintf(cgiOut, "<input type=\"radio\" name=\"pktProc\" value=\"DROP\"checked>丢弃\n");
+	//fprintf(cgiOut, "<input type=\"radio\" name=\"pktProc\" value=\"ACCEPT\">通过\n");
 
 	// (3)客户端、源和目的信息
 	fprintf(cgiOut, "<p>\n");
@@ -439,8 +439,7 @@ int GetUserInputData(USER_RULE *userRule){
 	}
 
 	userRule->protocal = Protocal();
-    //fprintf(fLog, "sel protocal:%d\n",userRule->protocal);
-    userRule->pktProc = PktProc();
+    //userRule->pktProc = PktProc();
     //fprintf(fLog, "sel pktProc:%d\n",userRule->pktProc);
     res = cgiFormString("cltip", userRule->cltip, 32);
 	if (res != cgiFormSuccess && res != cgiFormEmpty){
