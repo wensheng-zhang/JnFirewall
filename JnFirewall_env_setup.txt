@@ -59,6 +59,9 @@
 		iptables -F FORWARD
 	(4)开机自动启动mini_httpd服务
 		将启动命令添加到/etc/rc.d/rc.local即可（在CentOS7中，默认rc.local是没有执行权限，需要添加执行权限）
+	(5)一般情况下，开启DNAT需要对应的SNAT同时开启
+		iptables -I POSTROUTING -s 10.1.0.0/16 -j SNAT --to-source 192.168.0.78
+		(10.1.0.0/16:对应内网网卡的网段，也可以具体指定ip地址； 192.168.0.78：内网的网址与外网交互时，转换的外网地址)
 
 5、开发环境
 	(1)将编写的程序编译的cgi，放置到mini_httpd设置的cgi路径下
