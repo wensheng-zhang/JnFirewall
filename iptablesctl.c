@@ -38,7 +38,7 @@ typedef struct _USER_RULE{
 const int N = 300;
 
 FILE *fLog = NULL;
-char NICs[NIC_NUM][NIC_NAME_LENTH_MAX];
+static char NICs[NIC_NUM][NIC_NAME_LENTH_MAX];
 
 void ShowForm();
 int Protocal();
@@ -48,6 +48,7 @@ int IsValidMac(const char* mac);
 void DisplayPREROUTING();
 int GetTargetRule(char *line, TARGET_RULE *ruleBuf);
 void QueryNICs(void);
+int QueryIPAddrByIface(const char *interface, char *IPAddr, unsigned int lenIp);
 void QueryRules(void);
 int GetUserInputData(USER_RULE *userRule);
 int AddTarget(const USER_RULE *target);
@@ -135,52 +136,47 @@ void ShowForm()
 	// (3)客户端、源和目的信息
 	fprintf(cgiOut, "<p>\n");
 	fprintf(cgiOut, "<table border=\"1\">\n");
+	
 	fprintf(cgiOut, "<tr>\n");
 	fprintf(cgiOut, "<td>客户端IP:</td>\n");
 	fprintf(cgiOut, "<td><input name=\"cltip\" value=\"\"></td>\n");
 	fprintf(cgiOut, "</tr>\n");
+
+	// 出口网卡
 	fprintf(cgiOut, "<tr>\n");
-	fprintf(cgiOut, "<td>源IP:</td>\n");
-	fprintf(cgiOut, "<td><input name=\"srcip\" value=\"\"></td>\n");
-	fprintf(cgiOut, "<td>源端口:</td>\n");
-	fprintf(cgiOut, "<td><input name=\"srcport\" value=\"\"></td>\n");
-	fprintf(cgiOut, "<td>源Mac:</td>\n");
-	fprintf(cgiOut, "<td><input name=\"srcmac\" value=\"\"></td>\n");
-	fprintf(cgiOut, "<td>源NIC:</td>\n");
-	fprintf(cgiOut, "<td><select name=\"protocal\">\n");
+	fprintf(cgiOut, "<td>出口设备:</td>\n");
+	fprintf(cgiOut, "<td><select name=\"outdev\">\n");
 	for (i = 0; strlen(NICs[i])>0 && i < NIC_NUM; ++i){
 		fprintf(cgiOut, "<option value=\"%s\">%s\n", NICs[i], NICs[i]);
 	}
 	fprintf(cgiOut, "</select></td>\n");
+	// 出口网卡端口号
+	fprintf(cgiOut, "<td>出口设备端口:</td>\n");
+	fprintf(cgiOut, "<td><input name=\"outport\" value=\"\"></td>\n");
 	fprintf(cgiOut, "</tr>\n");
+	
+	// 被映射内部信息
 	fprintf(cgiOut, "<tr>\n");
-	fprintf(cgiOut, "<td>目的IP:</td>\n");
+	fprintf(cgiOut, "<td>内部IP:</td>\n");
 	fprintf(cgiOut, "<td><input name=\"dstip\" value=\"\"></td>\n");
-	fprintf(cgiOut, "<td>目的端口:</td>\n");
+	fprintf(cgiOut, "<td>内部端口:</td>\n");
 	fprintf(cgiOut, "<td><input name=\"dstport\" value=\"\"></td>\n");
-	fprintf(cgiOut, "<td>目的Mac:</td>\n");
-	fprintf(cgiOut, "<td><input name=\"dstmac\" value=\"\"></td>\n");
-	fprintf(cgiOut, "<td>目的NIC:</td>\n");
-	fprintf(cgiOut, "<td><select name=\"protocal\">\n");
-	for (i = 0; strlen(NICs[i])>0 && i < NIC_NUM; ++i){
-		fprintf(cgiOut, "<option value=\"%s\">%s\n", NICs[i], NICs[i]);
-	}
-	fprintf(cgiOut, "</select></td>\n");	
 	fprintf(cgiOut, "</tr>\n");
     fprintf(cgiOut, "</table>\n");
 	fprintf(cgiOut, "<p>\n");
 
 	fprintf(cgiOut, "<input type=\"submit\" name=\"add\" value=\"添加\">\n");
-	fprintf(cgiOut, "<input type=\"submit\" name=\"modify\" value=\"修改\">\n");
+	//fprintf(cgiOut, "<input type=\"submit\" name=\"modify\" value=\"修改\">\n");
 	fprintf(cgiOut, "<hr/>\n");
 
 	if (cgiFormSubmitClicked("add") == cgiFormSuccess) {
 		// Add target
 	    memset(&userRule, 0, sizeof(USER_RULE));
 		GetUserInputData(&userRule);
-	//	fprintf(cgiOut, "protocal:%d, pktProc:%d, cltip:%s, srcip:%s, srcport:%d, srcmac:%s, dstip:%s, dstport:%d, dstmac:%s\n",
-	//	    userRule.protocal, userRule.pktProc, userRule.cltip, userRule.srcip, userRule.srcport, userRule.srcmac,
-	//	    userRule.dstip, userRule.dstport, userRule.dstmac);
+		fprintf(fLog, "protocal:%d, pktProc:%d, cltip:%s, srcip:%s, srcport:%d, srcmac:%s, dstip:%s, dstport:%d, dstmac:%s\n",
+		    userRule.protocal, userRule.pktProc, userRule.cltip, userRule.srcip, userRule.srcport, userRule.srcmac,
+		    userRule.dstip, userRule.dstport, userRule.dstmac);
+        fflush(fLog);
 		if(AddTarget(&userRule) != 0) {
 			fprintf(fLog, "%s AddTarget fail\n", __FUNCTION__);
 		}
@@ -386,6 +382,46 @@ void QueryNICs(void){
     pclose(fp);
 }
 
+// 根据网卡名称，查找该网卡的ip地址
+int QueryIPAddrByIface(const char *interface, char *ipaddr, unsigned int lenIp){
+	FILE *fp;
+	char line[N];
+	char sysCmd[64];
+	char *result = NULL;
+	char delims[] = " ";
+	int i = 0;
+
+	if (NULL == interface || NULL == ipaddr || lenIp < 7) {
+		fprintf(fLog, "%s param is invalid.", __FUNCTION__);
+		return -1;
+	}
+	memset(sysCmd, 0, sizeof(char)*64);
+	sprintf(sysCmd, "ip -4 address show dev %s", interface);
+	if ((fp =popen(sysCmd, "r")) == NULL){
+		fprintf(fLog, "%s ifconfig fail.\n", __FUNCTION__);
+		return -1;
+	}
+
+	memset(line, 0, sizeof(char)*N);
+	while (fgets(line, sizeof(line)-1, fp) != NULL){
+		result = strtok(line, delims);
+		if (NULL != result && strcmp(result, "inet") == 0) {
+			result = strtok(NULL, delims);	// ip address (inet 192.168.0.222/24)
+			if (NULL != result && strlen(result) < lenIp + 3) {
+                while(i < strlen(result) && *(result + i) != '/'){
+                    ipaddr[i] = *(result + i);
+                    ++i;
+                }
+                ipaddr[i] = '\0';
+                fprintf(fLog, "%s result is %s", __FUNCTION__, ipaddr);
+				return 0;
+			}
+		}
+	}
+
+	return -1;
+}
+
 void QueryRules(void){
     char line[N];
     FILE *fp;
@@ -433,25 +469,38 @@ void QueryRules(void){
 
 int GetUserInputData(USER_RULE *userRule){
 	int res;
+	int outdev = 0;
+    char *nicPointers[NIC_NUM];
+    int nicCnt = 0;
+	char ipaddr[32];
     if (NULL == userRule){
 		fprintf(fLog, "%s param is null.\n", __FUNCTION__);
 		return -1;
 	}
-
 	userRule->protocal = Protocal();
     //userRule->pktProc = PktProc();
-    //fprintf(fLog, "sel pktProc:%d\n",userRule->pktProc);
     res = cgiFormString("cltip", userRule->cltip, 32);
 	if (res != cgiFormSuccess && res != cgiFormEmpty){
 		fprintf(fLog, "%s cltip error.\n", __FUNCTION__);
 		return -1;
 	}
-	if (cgiFormString("srcip", userRule->srcip, 32) != cgiFormSuccess){
-		fprintf(fLog, "%s srcip error.\n", __FUNCTION__);
+    while(nicCnt < NIC_NUM && strlen(NICs[nicCnt]) > 0){
+        nicPointers[nicCnt] = NICs[nicCnt];
+        ++nicCnt;
+    }
+    res = cgiFormSelectSingle("outdev", nicPointers, nicCnt, &outdev, 0);
+    if (res != cgiFormSuccess){
+        fprintf(fLog, "%s outdev error.\n", __FUNCTION__);
+        return -1;
+    }
+    res = QueryIPAddrByIface(NICs[outdev], ipaddr, 32);
+	if (0 != res) {
+		fprintf(fLog, "%s QueryIPAddrByIface fail.\n", __FUNCTION__);
 		return -1;
 	}
-	if (cgiFormInteger("srcport", &userRule->srcport, 0) != cgiFormSuccess){
-		fprintf(fLog, "%s srcport error.\n", __FUNCTION__);
+	strncpy(userRule->srcip, ipaddr, strlen(ipaddr));	
+	if (cgiFormInteger("outport", &userRule->srcport, 0) != cgiFormSuccess){
+		fprintf(fLog, "%s outport error.\n", __FUNCTION__);
 		return -1;
 	}
 /*	if (cgiFormString("srcmac", userRule->srcmac, 32) != cgiFormSuccess){
