@@ -62,6 +62,8 @@ int cgiMain() {
 	fprintf(cgiOut, "<HTML><HEAD>\n");
 	fprintf(cgiOut, "<TITLE>安全策略</TITLE></HEAD>\n");
 	fprintf(cgiOut, "<BODY><H1>安全策略</H1>\n");
+    fprintf(cgiOut, "<a href=\"mapport.cgi\" style=\"background-color:#AAAAFF\">端口映射</a>\n");
+    fprintf(cgiOut, "<a href=\"sepolicy.cgi\" style=\"background-color:#AAAAFF\">安全策略</a>\n");
 	fLog = fopen("/tmp/log", "a");
     QueryNICs();
 	fprintf(fLog, "QueryNICs finish.\n");
