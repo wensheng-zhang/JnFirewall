@@ -5,7 +5,7 @@
 
 2、设置网卡参数（使用root用户）
    (1)cd /etc/sysconfig/network-scripts(ifcfg-*相关文件就是网卡的配置文件)
-   (2)vi ifcfg-enp3s0(对应的网卡)
+   (2)vi ifcfg-enp3s0(对应的网卡)[该网卡作为配置网卡，也是对外公开网卡]
    根据自己机器的环境，修改以下参数
 	>>>>>>>>>>>>>>>>
 	BOOTPROTO="static"
@@ -16,8 +16,7 @@
 	DNS1="192.168.0.1"
 	IPV6_PRIVACY="no
 	<<<<<<<<<<<<<<<<<
-   设置完成之后，进行保存退出。
-   同理，设置其他网卡
+   设置完成之后，进行保存退出。   
    (3) 重启网络服务systemctl restart network，确保能够上网
 
 3、安装相关软件
@@ -42,6 +41,8 @@
 	然后make、make install
 	(5)安装vim
 	yum install vim
+	(6)安装brctl
+	yum install bridge-utils
 	
 4、系统配置项
 	(1)将/etc/sysctl.conf中的net.ipv4.ip_forward = 1设置，并用sysctl -p命令生效
@@ -62,7 +63,38 @@
 	(5)一般情况下，开启DNAT需要对应的SNAT同时开启
 		iptables -I POSTROUTING -s 10.1.0.0/16 -j SNAT --to-source 192.168.0.78
 		(10.1.0.0/16:对应内网网卡的网段，也可以具体指定ip地址； 192.168.0.78：内网的网址与外网交互时，转换的外网地址)
-
+	(6)网桥配置
+		brctl add br0
+		建立网桥配置文件
+		vim /etc/sysconfig/network-scripts/ifcfg-br0
+		在该配置文件中添加如下内容：
+		DEVICE=br0
+		TYPE=bridge
+		BOOTPROTO=static
+		IPADDR=10.1.0.1
+		PREFIX=16
+		GATEWAY=10.1.0.1
+		ONBOOT=yes
+	(7)添加网卡到网桥(除了配置网卡外，需要使用该网桥进行管理的网卡)
+		brctl addif br0 enp2s0f0
+		brctl addif br0 enp2s0f1
+		通过 brctl show 可以查看当前加入网桥的网卡信息
+		例如：
+		>>>>>>>>>>>>>>>>>>>>
+		bridge name	bridge id		STP enabled	interfaces
+		br0		8000.b496911e09d6	no		enp2s0f0
+											enp2s0f1
+		<<<<<<<<<<<<<<<<<<<<
+	(8)修改加入网桥的网卡配置文件(ifcfg-enp2s0f0/ifcfg-enp2s0f1)
+		例如：
+		>>>>>>>>>>>>>>>>>>>>
+		DEVICE=enp2s0f0
+        TYPE=Ethernet
+        BOOTPROTO=static
+		IPADDR=0.0.0.0
+        ONBOOT=yes
+        BRIDGE=br0
+		<<<<<<<<<<<<<<<<<<<<
 5、开发环境
 	(1)将编写的程序编译的cgi，放置到mini_httpd设置的cgi路径下
 	通过浏览器即可访问到该cgi(如：http://192.168.0.78:8080/cgi-bin/iptablesctl.cgi)
