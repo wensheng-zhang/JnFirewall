@@ -7,13 +7,14 @@
 
 #define NIC_NUM  12
 #define NIC_NAME_LENTH_MAX 32
+const int N = 300;
 
 // 从防火墙取上的规则
 typedef struct _TARGET_RULE{
 	int seqNo;
 	char target[64];
 	char protocal[16];
-	char cltip[32];
+	char netport[32];
 	char srcip[32];
 	unsigned short srcport;
 	char srcmac[32];
@@ -26,7 +27,7 @@ typedef struct _TARGET_RULE{
 typedef struct _USER_RULE{
 	int protocal;
 	int pktProc;
-	char cltip[32];
+	char netport[32];
 	char srcip[32];
 	int srcport;
 	char srcmac[32];
@@ -35,7 +36,6 @@ typedef struct _USER_RULE{
 	char dstmac[32];
 }USER_RULE;
 
-const int N = 300;
 
 FILE *fLog = NULL;
 static char NICs[NIC_NUM][NIC_NAME_LENTH_MAX];
@@ -45,10 +45,9 @@ int Protocal();
 int PktProc();
 int IsValidIPV4(const char* ipv4);
 int IsValidMac(const char* mac);
-void DisplayPREROUTING();
+void DisplayFORWARD();
 int GetTargetRule(char *line, TARGET_RULE *ruleBuf);
 void QueryNICs(void);
-int QueryIPAddrByIface(const char *interface, char *IPAddr, unsigned int lenIp);
 void QueryRules(void);
 int GetUserInputData(USER_RULE *userRule);
 int AddTarget(const USER_RULE *target);
@@ -61,8 +60,10 @@ int cgiMain() {
 	cgiHeaderContentType("text/html;charset=utf-8\n");
 	/* Top of the page */
 	fprintf(cgiOut, "<HTML><HEAD>\n");
-	fprintf(cgiOut, "<TITLE>端口映射</TITLE></HEAD>\n");
-	fprintf(cgiOut, "<BODY><H1>端口映射</H1>\n");
+	fprintf(cgiOut, "<TITLE>安全策略</TITLE></HEAD>\n");
+	fprintf(cgiOut, "<BODY><H1>安全策略</H1>\n");
+    fprintf(cgiOut, "<a href=\"mapport.cgi\" style=\"background-color:#AAAAFF\">端口映射</a>\n");
+    fprintf(cgiOut, "<a href=\"sepolicy.cgi\" style=\"background-color:#AAAAFF\">安全策略</a>\n");
 	fLog = fopen("/tmp/log", "a");
     QueryNICs();
 	fprintf(fLog, "QueryNICs finish.\n");
@@ -100,9 +101,6 @@ char *pktProcs[] = {
 
 int PktProc() {
 	int pktProcChoice = -1;
-	/* Approach #1: check for one of several valid responses. 
-		Good if there are a short list of possible button values and
-		you wish to enumerate them. */
 	cgiFormRadio("pktProc", pktProcs, 2, &pktProcChoice, 0);
 	return pktProcChoice;
 }
@@ -129,42 +127,45 @@ void ShowForm()
 	fprintf(cgiOut, "<br>\n");
 
 	// (2)报文处理
-	//fprintf(cgiOut, "报文处理:\n");
-	//fprintf(cgiOut, "<input type=\"radio\" name=\"pktProc\" value=\"DROP\"checked>丢弃\n");
-	//fprintf(cgiOut, "<input type=\"radio\" name=\"pktProc\" value=\"ACCEPT\">通过\n");
-
-	// (3)客户端、源和目的信息
+	fprintf(cgiOut, "报文处理:\n");
+	fprintf(cgiOut, "<input type=\"radio\" name=\"pktProc\" value=\"DROP\"checked>丢弃\n");
+	fprintf(cgiOut, "<input type=\"radio\" name=\"pktProc\" value=\"ACCEPT\">通过\n");
 	fprintf(cgiOut, "<p>\n");
-	fprintf(cgiOut, "<table border=\"1\">\n");
-	
-	fprintf(cgiOut, "<tr>\n");
-	fprintf(cgiOut, "<td>客户端IP:</td>\n");
-	fprintf(cgiOut, "<td><input name=\"cltip\" value=\"\"></td>\n");
-	fprintf(cgiOut, "</tr>\n");
 
-	// 出口网卡
-	fprintf(cgiOut, "<tr>\n");
-	fprintf(cgiOut, "<td>出口设备:</td>\n");
-	fprintf(cgiOut, "<td><select name=\"outdev\">\n");
+	// (3)网络端口
+	fprintf(cgiOut, "网络端口:\n");
+	fprintf(cgiOut, "<select name=\"netport\">\n");
 	for (i = 0; strlen(NICs[i])>0 && i < NIC_NUM; ++i){
 		fprintf(cgiOut, "<option value=\"%s\">%s\n", NICs[i], NICs[i]);
 	}
-	fprintf(cgiOut, "</select></td>\n");
-	// 出口网卡端口号
-	fprintf(cgiOut, "<td>出口设备端口:</td>\n");
-	fprintf(cgiOut, "<td><input name=\"outport\" value=\"\"></td>\n");
+	fprintf(cgiOut, "</select>\n");	
+	fprintf(cgiOut, "<p>\n");
+	
+	// (4)源和目的信息	
+	fprintf(cgiOut, "<table border=\"1\">\n");	
+	fprintf(cgiOut, "<tr>\n");
+	fprintf(cgiOut, "<td style=\"background-color:#D2B48C\">源IP地址:</td>\n");
+	fprintf(cgiOut, "<td><input name=\"srcip\" value=\"\"></td>\n");
+	fprintf(cgiOut, "<td style=\"background-color:#90EE90\">目的IP地址:</td>\n");
+	fprintf(cgiOut, "<td><input name=\"dstip\" value=\"\"></td>\n");
 	fprintf(cgiOut, "</tr>\n");
 	
-	// 被映射内部信息
 	fprintf(cgiOut, "<tr>\n");
-	fprintf(cgiOut, "<td>内部IP:</td>\n");
-	fprintf(cgiOut, "<td><input name=\"dstip\" value=\"\"></td>\n");
-	fprintf(cgiOut, "<td>内部端口:</td>\n");
+	fprintf(cgiOut, "<td style=\"background-color:#D2B48C\">源端口:</td>\n");
+	fprintf(cgiOut, "<td><input name=\"srcport\" value=\"\"></td>\n");
+	fprintf(cgiOut, "<td style=\"background-color:#90EE90\">目的端口:</td>\n");
 	fprintf(cgiOut, "<td><input name=\"dstport\" value=\"\"></td>\n");
 	fprintf(cgiOut, "</tr>\n");
-    fprintf(cgiOut, "</table>\n");
-	fprintf(cgiOut, "<p>\n");
+	
+	fprintf(cgiOut, "<tr>\n");
+	fprintf(cgiOut, "<td style=\"background-color:#D2B48C\">源Mac地址:</td>\n");
+	fprintf(cgiOut, "<td><input name=\"srcmac\" value=\"\"></td>\n");
+	//fprintf(cgiOut, "<td style=\"background-color:#90EE90\">目的Mac地址:</td>\n");
+	//fprintf(cgiOut, "<td><input name=\"dstMac\" value=\"\"></td>\n");
+	fprintf(cgiOut, "</tr>\n");
+	fprintf(cgiOut, "</table>\n");
 
+    fprintf(cgiOut, "<p>\n");
 	fprintf(cgiOut, "<input type=\"submit\" name=\"add\" value=\"添加\">\n");
 	//fprintf(cgiOut, "<input type=\"submit\" name=\"modify\" value=\"修改\">\n");
 	fprintf(cgiOut, "<hr/>\n");
@@ -173,8 +174,8 @@ void ShowForm()
 		// Add target
 	    memset(&userRule, 0, sizeof(USER_RULE));
 		GetUserInputData(&userRule);
-		fprintf(fLog, "protocal:%d, pktProc:%d, cltip:%s, srcip:%s, srcport:%d, srcmac:%s, dstip:%s, dstport:%d, dstmac:%s\n",
-		    userRule.protocal, userRule.pktProc, userRule.cltip, userRule.srcip, userRule.srcport, userRule.srcmac,
+		fprintf(fLog, "protocal:%d, pktProc:%d, netport:%s, srcip:%s, srcport:%d, srcmac:%s, dstip:%s, dstport:%d, dstmac:%s\n",
+		    userRule.protocal, userRule.pktProc, userRule.netport, userRule.srcip, userRule.srcport, userRule.srcmac,
 		    userRule.dstip, userRule.dstport, userRule.dstmac);
         fflush(fLog);
 		if(AddTarget(&userRule) != 0) {
@@ -194,8 +195,8 @@ void ShowForm()
 	
 	// (4)规则列表
 	fprintf(cgiOut, "<p>\n");
-	// 显示PREROUTING的列表
-	DisplayPREROUTING();
+	// 显示FORWARD的列表
+	DisplayFORWARD();
 	fprintf(cgiOut, "<p>\n");
 	fprintf(cgiOut, "<input type=\"submit\" name=\"delete\" value=\"删除\">\n");
     fprintf(cgiOut, "<hr/>\n");
@@ -228,7 +229,7 @@ int IsValidMac(const char* mac){
     int i = 0;
 	char temp[32] = {0};
     char sprtf[32] = {0};
-	if (NULL == mac){	// 不设定mac地址
+	if (NULL == mac || strlen(mac) == 0){	// 不设定mac地址
 		fprintf(fLog, "%s param is NULL.\n", __FUNCTION__);
 		return 0;
 	}
@@ -252,28 +253,26 @@ int IsValidMac(const char* mac){
 			return 0;			
 		}
 	}
-	fprintf(fLog, "%s Invalid mac addr:%s.\n", __FUNCTION__, mac);
+	fprintf(fLog, "%s Invalid mac addr:%s\n", __FUNCTION__, mac);
 	return -1;
 }
 
 
-void DisplayPREROUTING() {
+void DisplayFORWARD() {
 	fprintf(cgiOut, "<table border=\"1\">\n");
 	// 显示表头
 	fprintf(cgiOut, "<tr style=\"background-color:#00FF00\">\n");
 	fprintf(cgiOut, "<td> </td>\n");
 	fprintf(cgiOut, "<td>序号</td>\n");
-	fprintf(cgiOut, "<td>规则</td>\n");
+	fprintf(cgiOut, "<td>报文处理</td>\n");
 	fprintf(cgiOut, "<td>协议</td>\n");
-	fprintf(cgiOut, "<td>客户端IP</td>\n");
-	fprintf(cgiOut, "<td>源IP</td>\n");
+	fprintf(cgiOut, "<td>网络端口</td>\n");
+	fprintf(cgiOut, "<td>源IP地址</td>\n");
 	fprintf(cgiOut, "<td>源端口</td>\n");
 	fprintf(cgiOut, "<td>源Mac</td>\n");
-	fprintf(cgiOut, "<td>源NIC</td>\n");
-	fprintf(cgiOut, "<td>目的IP</td>\n");
+	fprintf(cgiOut, "<td>目的IP地址</td>\n");
 	fprintf(cgiOut, "<td>目的端口</td>\n");
-	fprintf(cgiOut, "<td>目的Mac</td>\n");
-	fprintf(cgiOut, "<td>目的NIC</td>\n");
+	//fprintf(cgiOut, "<td>目的Mac</td>\n");
 	fprintf(cgiOut, "</tr>\n");
 	// 显示内容
 	QueryRules();
@@ -282,69 +281,90 @@ void DisplayPREROUTING() {
 
 int GetTargetRule(char *line, TARGET_RULE *ruleBuf)
 {
-	if (NULL == line || NULL == ruleBuf)
-		return -1;
-//# iptables -t nat -nvL PREROUTING --line-number
-//Chain PREROUTING (policy ACCEPT 5232 packets, 601K bytes)
-//num   pkts bytes target     prot opt in     out     source               destination
-/*1		   2 	3	4			5	6  7	  8			9					10					11	12		13*/
-//1        4   208 DNAT       tcp  --  *      *       0.0.0.0/0            192.168.0.78         tcp dpt:80 to:10.1.0.5:8080
-
+	if (NULL == line || NULL == ruleBuf){
+		fprintf(fLog, "%s param is invalid.\n", __FUNCTION__);
+        return -1;
+    }
+/*
+# iptables -t filter -nvL FORWARD --line-number
+Chain FORWARD (policy ACCEPT 0 packets, 0 bytes)
+1	   2    3     4			 5	  6   7      8 		  9 					10		(可选项)->11	   12		13      14		15
+num   pkts bytes target     prot opt in     out     source               destination         
+1        0     0 ACCEPT     tcp  --  enp3s0 *       192.168.0.106        10.1.0.5             tcp spt:5555 dpt:6666 MAC AB:DC:EF:12:32:45
+*/
 	char delims[] = " ";
     char *result = NULL;
-	char *dst = NULL;
 	char *find = NULL;
 	int i = 0;
 	int j = 0;
 	int count = 0;
 	char port[8] = {0};
 	char rmlinebreak[32] = {0};  // 删除换行符
+    fprintf(fLog, "%s line:%s\n", __FUNCTION__, line);
+    fflush(fLog);
     result = strtok(line, delims);
     while( result != NULL ){
 		switch (++i){
 			case 1: ruleBuf->seqNo = atoi(result); break;
 			case 4: strncpy(ruleBuf->target, result, strlen(result)); break;
 			case 5: strncpy(ruleBuf->protocal, result, strlen(result)); break;
-			case 9: strncpy(ruleBuf->cltip, result, strlen(result)); break;
-			case 10: strncpy(ruleBuf->srcip, result, strlen(result)); break;
-			case 12: {
-					find = strstr(result, "dpt:");
-					if (find != NULL)
-					{
-						memset(port, 0, 8);
-						count = 0;
-						while ( *(find + 4 + count)>= '0' &&  *(find + 4 + count) <= '9')
-							++count;
-						for (j = 0; j < count; j++)
-							port[j] = *(find + 4 +j);
-						ruleBuf->srcport = atoi(port);
+			case 7: strncpy(ruleBuf->netport, result, strlen(result)); break;
+			case 9: strncpy(ruleBuf->srcip, result, strlen(result)); break;
+			case 10: {
+				j = 0;
+				while(j < strlen(result)){
+					if (*(result + j) == '\n' || *(result + j) == '\r'){
+						rmlinebreak[j] = '\0';
+						break;
 					}
-					break;
-				}
-			case 13: {
-					j = 0;
-					while(j < strlen(result)){
-						if (*(result + j) == '\n'){
-							rmlinebreak[j] = '\0';
-							break;
-						}
-						rmlinebreak[j] = *(result + j);
-						++j;
-					}	 
-					dst = strtok(rmlinebreak, ":");
-					j = 0;
-					while (dst != NULL) {
-						switch (j++) {
-						    case 0: break;
-							case 1: strncpy(ruleBuf->dstip, dst, strlen(dst)); break;
-							case 2: ruleBuf->dstport = atoi(dst); break;
-							default: break;
-				    	}
-						dst = strtok(NULL, ":");
+					rmlinebreak[j] = *(result + j);
+					++j;
+				}	
+				strncpy(ruleBuf->dstip, rmlinebreak, strlen(result)); 
+				break;
+			}
+			default: {
+				j = 0;
+				while(j < strlen(result)){
+					if (*(result + j) == '\n' || *(result + j) == '\r'){
+						rmlinebreak[j] = '\0';
+						break;
 					}
-					break;
+					rmlinebreak[j] = *(result + j);
+					++j;
 				}
-			default: break;
+                if (j == strlen(result)) rmlinebreak[j] = '\0';
+				if ((find = strstr(rmlinebreak, "spt:")) != NULL) {
+					memset(port, 0, 8);
+					count = 0;
+					while ( *(find + 4 + count)>= '0' &&  *(find + 4 + count) <= '9')
+						++count;
+					for (j = 0; j < count; j++)
+						port[j] = *(find + 4 +j);
+					ruleBuf->srcport = atoi(port);
+				} else if ((find = strstr(rmlinebreak, "dpt:")) != NULL) {
+					memset(port, 0, 8);
+					count = 0;
+					while ( *(find + 4 + count)>= '0' &&  *(find + 4 + count) <= '9')
+						++count;
+					for (j = 0; j < count; j++)
+						port[j] = *(find + 4 +j);
+					ruleBuf->dstport = atoi(port);
+				} else if ((find = strstr(rmlinebreak, "MAC")) != NULL) {
+					result = strtok( NULL, delims );
+                    while(j < strlen(result)){
+                    if (*(result + j) == '\n' || *(result + j) == '\r'){
+                        rmlinebreak[j] = '\0';
+                        break;
+                    }
+                    rmlinebreak[j] = *(result + j); 
+                    ++j;
+                    }
+                    if (j == strlen(result)) rmlinebreak[j] = '\0';
+					strncpy(ruleBuf->srcmac, result, strlen(result));
+				}
+				break;
+			}
 		}// switch
 		result = strtok( NULL, delims );
     }// while( result != NULL )
@@ -382,52 +402,13 @@ void QueryNICs(void){
     pclose(fp);
 }
 
-// 根据网卡名称，查找该网卡的ip地址
-int QueryIPAddrByIface(const char *interface, char *ipaddr, unsigned int lenIp){
-	FILE *fp;
-	char line[N];
-	char sysCmd[64];
-	char *result = NULL;
-	char delims[] = " ";
-	int i = 0;
-
-	if (NULL == interface || NULL == ipaddr || lenIp < 7) {
-		fprintf(fLog, "%s param is invalid.", __FUNCTION__);
-		return -1;
-	}
-	memset(sysCmd, 0, sizeof(char)*64);
-	sprintf(sysCmd, "ip -4 address show dev %s", interface);
-	if ((fp =popen(sysCmd, "r")) == NULL){
-		fprintf(fLog, "%s ifconfig fail.\n", __FUNCTION__);
-		return -1;
-	}
-
-	memset(line, 0, sizeof(char)*N);
-	while (fgets(line, sizeof(line)-1, fp) != NULL){
-		result = strtok(line, delims);
-		if (NULL != result && strcmp(result, "inet") == 0) {
-			result = strtok(NULL, delims);	// ip address (inet 192.168.0.222/24)
-			if (NULL != result && strlen(result) < lenIp + 3) {
-                while(i < strlen(result) && *(result + i) != '/'){
-                    ipaddr[i] = *(result + i);
-                    ++i;
-                }
-                ipaddr[i] = '\0';
-                fprintf(fLog, "%s result is %s", __FUNCTION__, ipaddr);
-				return 0;
-			}
-		}
-	}
-
-	return -1;
-}
-
 void QueryRules(void){
     char line[N];
     FILE *fp;
 	int i = 0; 
 	int j = 0;
-    char sysCommand[] = "iptables -t nat -nvL PREROUTING --line-number";
+
+    char sysCommand[] = "iptables -t filter -nvL FORWARD --line-number";
 	TARGET_RULE targetRules[64];
 	
     if((fp = popen(sysCommand, "r")) == NULL){
@@ -436,8 +417,7 @@ void QueryRules(void){
 	}
 	
 	memset(targetRules, 0, 64*sizeof(TARGET_RULE));
-    fprintf(fLog, "%s iptables Prerouting success.\n", __FUNCTION__);
-    fflush(fLog);
+    fprintf(fLog, "%s iptables FORWARD success.\n", __FUNCTION__);
 	while ((fgets(line, sizeof(line)-1, fp) != NULL)&& (i < 64 + 2)) {
 		if (i < 2) { // 前2行为表头
             i++;continue;
@@ -453,15 +433,22 @@ void QueryRules(void){
 		fprintf(cgiOut, "<td>%d</td>\n", targetRules[j].seqNo);
 		fprintf(cgiOut, "<td>%s</td>\n", targetRules[j].target);
 		fprintf(cgiOut, "<td>%s</td>\n", targetRules[j].protocal);
-		fprintf(cgiOut, "<td>%s</td>\n", targetRules[j].cltip);
+		fprintf(cgiOut, "<td>%s</td>\n", targetRules[j].netport);
 		fprintf(cgiOut, "<td>%s</td>\n", targetRules[j].srcip);
-		fprintf(cgiOut, "<td>%d</td>\n", targetRules[j].srcport);
+        if (targetRules[j].srcport == 0) {
+           fprintf(cgiOut, "<td></td>\n");
+        }else {
+            fprintf(cgiOut, "<td>%d</td>\n", targetRules[j].srcport);
+        }
 		fprintf(cgiOut, "<td>%s</td>\n", targetRules[j].srcmac);
-		fprintf(cgiOut, "<td>%s</td>\n", "");
+		//fprintf(cgiOut, "<td>%s</td>\n", "");
 		fprintf(cgiOut, "<td>%s</td>\n", targetRules[j].dstip);
-		fprintf(cgiOut, "<td>%d</td>\n", targetRules[j].dstport);
-		fprintf(cgiOut, "<td>%s</td>\n", targetRules[j].dstmac);
-		fprintf(cgiOut, "<td>%s</td>\n", "");
+		if (targetRules[j].dstport == 0) {
+            fprintf(cgiOut, "<td></td>\n");
+        }else {
+            fprintf(cgiOut, "<td>%d</td>\n", targetRules[j].dstport);
+        }
+		//fprintf(cgiOut, "<td>%s</td>\n", targetRules[j].dstmac);
 		fprintf(cgiOut, "</tr>\n");			
 	}
 	pclose(fp);
@@ -469,95 +456,119 @@ void QueryRules(void){
 
 int GetUserInputData(USER_RULE *userRule){
 	int res;
-	int outdev = 0;
+	int netport = 0;
     char *nicPointers[NIC_NUM];
     int nicCnt = 0;
-	char ipaddr[32];
     if (NULL == userRule){
 		fprintf(fLog, "%s param is null.\n", __FUNCTION__);
 		return -1;
 	}
 	userRule->protocal = Protocal();
-    //userRule->pktProc = PktProc();
-    res = cgiFormString("cltip", userRule->cltip, 32);
-	if (res != cgiFormSuccess && res != cgiFormEmpty){
-		fprintf(fLog, "%s cltip error.\n", __FUNCTION__);
-		return -1;
-	}
+    userRule->pktProc = PktProc();
+	
     while(nicCnt < NIC_NUM && strlen(NICs[nicCnt]) > 0){
         nicPointers[nicCnt] = NICs[nicCnt];
         ++nicCnt;
     }
-    res = cgiFormSelectSingle("outdev", nicPointers, nicCnt, &outdev, 0);
+    res = cgiFormSelectSingle("netport", nicPointers, nicCnt, &netport, 0);
     if (res != cgiFormSuccess){
         fprintf(fLog, "%s outdev error.\n", __FUNCTION__);
         return -1;
     }
-    res = QueryIPAddrByIface(NICs[outdev], ipaddr, 32);
-	if (0 != res) {
-		fprintf(fLog, "%s QueryIPAddrByIface fail.\n", __FUNCTION__);
-		return -1;
-	}
-	strncpy(userRule->srcip, ipaddr, strlen(ipaddr));	
-	if (cgiFormInteger("outport", &userRule->srcport, 0) != cgiFormSuccess){
-		fprintf(fLog, "%s outport error.\n", __FUNCTION__);
-		return -1;
-	}
-/*	if (cgiFormString("srcmac", userRule->srcmac, 32) != cgiFormSuccess){
-		fprintf(fLog, "%s srcmac error.\n", __FUNCTION__);
-		return -1;
-	}*/
-	if (cgiFormString("dstip", userRule->dstip, 32) != cgiFormSuccess){
-		fprintf(fLog, "%s dstip error.\n", __FUNCTION__);
-		return -1;
-	}
-	if (cgiFormInteger("dstport", &userRule->dstport, 0) != cgiFormSuccess){
-		fprintf(fLog, "%s dstport error.\n", __FUNCTION__);
-		return -1;
-	}
-/*	if (cgiFormString("dstmac", userRule->dstmac, 32) != cgiFormSuccess){
-		fprintf(fLog, "%s dstmac error.\n", __FUNCTION__);
-		return -1;
-	}*/
+	strncpy(userRule->netport, NICs[netport], strlen(NICs[netport]));
 
+	res = cgiFormString("srcip", userRule->srcip, 32);
+	if ( res != cgiFormSuccess && res != cgiFormEmpty) {
+		fprintf(fLog, "%s srcip error.res:%d\n", __FUNCTION__, res);
+		return -1;
+	}
+
+	res = cgiFormString("dstip", userRule->dstip, 32);
+	if (res != cgiFormSuccess && res != cgiFormEmpty){
+		fprintf(fLog, "%s dstip error.res:%d\n", __FUNCTION__, res);
+		return -1;
+	}
+
+	res = cgiFormInteger("srcport", &userRule->srcport, 0);
+	if (res != cgiFormSuccess && res != cgiFormEmpty){
+		fprintf(fLog, "%s srcport error.res:%d\n", __FUNCTION__, res);
+		return -1;
+	}
+
+	res = cgiFormInteger("dstport", &userRule->dstport, 0);
+	if (res!= cgiFormSuccess && res != cgiFormEmpty){
+		fprintf(fLog, "%s dstport error.res:%d\n", __FUNCTION__, res);
+		return -1;
+	}
+
+	res = cgiFormString("srcmac", userRule->srcmac, 32);
+	if ( res != cgiFormSuccess && res != cgiFormEmpty) {
+		fprintf(fLog, "%s srcmac error.res:%d\n", __FUNCTION__, res);
+		return -1;
+	}
+
+	// 当前iptables不支持对dstmac的过滤
+	
 	return 0;
 }
 
 int AddTarget(const USER_RULE *target){
-	char command[128] = {0};
-	char cltip[32] = {0};
+	char command[256] = {0};
+	char dstip[32] = {0};
 	char srcip[32] = {0};
+	char sport[16] = {0};
+	char dport[16] = {0};
+	char ports[64] = {0};
+	char mac[64] = {0};
     char line[N];
 	FILE *fp = NULL;
 	if (NULL == target 
-		|| 0 != IsValidIPV4(target->cltip)|| 0 != IsValidIPV4(target->srcip) || 0 != IsValidIPV4(target->dstip)
-		|| 0 >= target->srcport || 65535 < target->srcport
-		|| 0 >= target->dstport || 65535 < target->dstport) {
-//		|| 0 != IsValidMac(target->srcmac) || 0 != IsValidMac(target->dstmac)) {
+		|| 0 != IsValidIPV4(target->srcip) || 0 != IsValidIPV4(target->dstip)
+		|| 0 > target->srcport || 65535 < target->srcport
+		|| 0 > target->dstport || 65535 < target->dstport
+        || 0 != IsValidMac(target->srcmac) ) {
 		fprintf(fLog, "%s param is invalid.\n", __FUNCTION__);
 		return -1;
 	}
-	if (strlen(target->cltip) != 0){
-		sprintf(cltip, "-s %s", target->cltip);
-	}
+
 	if (strlen(target->srcip) != 0){
-		sprintf(srcip, "-d %s", target->srcip);
+		sprintf(srcip, "-s %s", target->srcip);
+	}
+	if (strlen(target->dstip) != 0){
+		sprintf(dstip, "-d %s", target->dstip);
+	}
+	//-m tcp --sport 5555 --dport 6666
+	if (target->srcport != 0 || target->dstport != 0) {
+		if (target->srcport != 0) {
+			sprintf(sport, "--sport %d", target->srcport);
+		}
+		if (target->dstport != 0) {
+			sprintf(dport, "--dport %d", target->dstport);
+		}
+		sprintf(ports, "-m %s %s %s", protocals[target->protocal], sport, dport);
+	}
+    fprintf(fLog, "%s ports:%s, srcport:%d, dstport:%d\n", __FUNCTION__, ports, target->srcport, target->dstport);
+	//-m mac --mac-source ab:dc:ef:12:32:45
+	if (strlen(target->srcmac) > 0) {
+		sprintf(mac, "-m mac --mac-source %s", target->srcmac);
 	}
 		
-//iptables -t nat -I PREROUTING -s 192.168.0.100 -d 192.168.0.78 -p tcp -m tcp --dport 8000 -j DNAT --to-destination 10.1.0.5:8080
-	sprintf(command, "iptables -t nat -I PREROUTING %s %s -p %s --dport %d -j DNAT --to-destination %s:%d", 
-		cltip, srcip, protocals[target->protocal], target->srcport, target->dstip, target->dstport);
+//iptables -t filter -I FORWARD  -s 192.168.0.106 -d 10.1.0.5  -p tcp  -m tcp --sport 5555 --dport 6666 -m mac --mac-source ab:dc:ef:12:32:45 -i enp3s0  -j ACCEPT
+	sprintf(command, "iptables -t filter -I FORWARD %s %s -p %s %s %s -i %s -j %s", 
+		srcip, dstip, protocals[target->protocal], ports, mac, target->netport, pktProcs[target->pktProc]);
 	if((fp = popen(command, "r")) == NULL){
-        fprintf(fLog, "%s %s=>popen fail.\n", __FUNCTION__, command);
+        fprintf(fLog, "%s %s =>popen fail.\n", __FUNCTION__, command);
         return -1;
-	}else if (fgets(line, sizeof(line)-1, fp) != NULL){
-        fprintf(fLog, "%s %s=>execute iptables fail.\n", __FUNCTION__, command);
+	}
+    memset(line, 0, N);
+    fgets(line, sizeof(line)-1, fp);
+    if (strlen(line) != 0){
+        fprintf(fLog, "%s %s =>execute iptables fail.\n", __FUNCTION__, command);
         return -1;
-    }else{
-        fprintf(fLog, "%s %s=>execute iptables success.\n", __FUNCTION__, command);
-        sleep(1);
-	    return 0;
-    } 
+    }
+    fprintf(fLog, "%s %s =>execute iptables success.\n", __FUNCTION__, command);
+    sleep(1);
+    return 0;
 }
 
 int DeleteTargets(){
@@ -569,10 +580,10 @@ int DeleteTargets(){
 	int result;
 	int invalid;
     char sysCommand[64] = { 0 };
-    sprintf(sysCommand, "%s", "iptables -t nat -nvL PREROUTING --line-number");
+    sprintf(sysCommand, "%s", "iptables -t filter -nvL FORWARD --line-number");
 	
     if((fp = popen(sysCommand, "r")) == NULL){
-		fprintf(fLog, "%s iptables PREROUTING fail.\n", __FUNCTION__);
+		fprintf(fLog, "%s iptables FORWARD fail.\n", __FUNCTION__);
 		pclose(fp);
         return -1;
 	}
@@ -581,7 +592,7 @@ int DeleteTargets(){
 		++count;
 	}
 	if (count < 3){
-		fprintf(fLog, "%s No target is in Chain PREROUTING\n", __FUNCTION__);
+		fprintf(fLog, "%s No target is in Chain FORWARD\n", __FUNCTION__);
 		pclose(fp);
 		return -1;
 	}
@@ -615,7 +626,7 @@ int DeleteTargets(){
 			for (i = count-1; i >= 0; --i){
 				if (1 == deletedChoices[i]){
 					memset(sysCommand, 0, 64);
-					sprintf(sysCommand, "iptables -t nat -D PREROUTING %d", i+1);
+					sprintf(sysCommand, "iptables -t filter -D FORWARD %d", i+1);
 					if((fp = popen(sysCommand, "r")) == NULL){
 						fprintf(fLog, "%s %s => popen fail.\n", __FUNCTION__, sysCommand);
 					} else if (fgets(line, sizeof(line)-1, fp) != NULL) {
