@@ -144,16 +144,16 @@ void ShowForm()
 	fprintf(cgiOut, "<td><input name=\"cltip\" value=\"\"></td>\n");
 	fprintf(cgiOut, "</tr>\n");
 
-	// 出口网卡
+	// 对外网卡
 	fprintf(cgiOut, "<tr>\n");
-	fprintf(cgiOut, "<td>出口设备:</td>\n");
+	fprintf(cgiOut, "<td>对外设备:</td>\n");
 	fprintf(cgiOut, "<td><select name=\"outdev\">\n");
 	for (i = 0; strlen(NICs[i])>0 && i < NIC_NUM; ++i){
 		fprintf(cgiOut, "<option value=\"%s\">%s\n", NICs[i], NICs[i]);
 	}
 	fprintf(cgiOut, "</select></td>\n");
-	// 出口网卡端口号
-	fprintf(cgiOut, "<td>出口设备端口:</td>\n");
+	// 对外网卡端口号
+	fprintf(cgiOut, "<td>对外设备端口:</td>\n");
 	fprintf(cgiOut, "<td><input name=\"outport\" value=\"\"></td>\n");
 	fprintf(cgiOut, "</tr>\n");
 	
@@ -270,12 +270,8 @@ void DisplayPREROUTING() {
 	fprintf(cgiOut, "<td>客户端IP</td>\n");
 	fprintf(cgiOut, "<td>源IP</td>\n");
 	fprintf(cgiOut, "<td>源端口</td>\n");
-	fprintf(cgiOut, "<td>源Mac</td>\n");
-	fprintf(cgiOut, "<td>源NIC</td>\n");
 	fprintf(cgiOut, "<td>目的IP</td>\n");
 	fprintf(cgiOut, "<td>目的端口</td>\n");
-	fprintf(cgiOut, "<td>目的Mac</td>\n");
-	fprintf(cgiOut, "<td>目的NIC</td>\n");
 	fprintf(cgiOut, "</tr>\n");
 	// 显示内容
 	QueryRules();
@@ -511,12 +507,8 @@ void QueryRules(void){
 		fprintf(cgiOut, "<td>%s</td>\n", targetRules[j].cltip);
 		fprintf(cgiOut, "<td>%s</td>\n", targetRules[j].srcip);
 		fprintf(cgiOut, "<td>%d</td>\n", targetRules[j].srcport);
-		fprintf(cgiOut, "<td>%s</td>\n", targetRules[j].srcmac);
-		fprintf(cgiOut, "<td>%s</td>\n", "");
 		fprintf(cgiOut, "<td>%s</td>\n", targetRules[j].dstip);
 		fprintf(cgiOut, "<td>%d</td>\n", targetRules[j].dstport);
-		fprintf(cgiOut, "<td>%s</td>\n", targetRules[j].dstmac);
-		fprintf(cgiOut, "<td>%s</td>\n", "");
 		fprintf(cgiOut, "</tr>\n");			
 	}
 	pclose(fp);
