@@ -359,29 +359,82 @@ void QueryNICs(void){
     FILE *fp;
 	char delims[] = " ";
 	char *result = NULL;
+	char NICs_all[NIC_NUM][NIC_NAME_LENTH_MAX];
+	char NICs_br_brif[NIC_NUM][NIC_NAME_LENTH_MAX];
 	
-	char sysCommand[] = "ifconfig -a -s | column -t";
+	char ifcfgCmd[] = "ifconfig -a -s | column -t";
+	char brctlShowCmd[] = "brctl show";
+
+	int NIC_cnt = 0;
+	int NIC_br_cnt = 0;
 	int i = 0;
-	if((fp = popen(sysCommand, "r")) == NULL){
-        fprintf(fLog, "%s ifconfig result is null.\n", __FUNCTION__);
+	int j = 0;
+	int k = 0;
+	if((fp = popen(ifcfgCmd, "r")) == NULL){
+        fprintf(fLog, "%s popen ifconfig_result is null.\n", __FUNCTION__);
         return;
 	}
     //fprintf(fLog, "%s ifconfig popen success.\n", __FUNCTION__);
-	memset(NICs, 0, sizeof(char)*NIC_NUM*NIC_NAME_LENTH_MAX);	
-	while (fgets(line, sizeof(line)-1, fp) != NULL && i < NIC_NUM){
-        if (0 ==  i) {
-             ++i;
+	memset(NICs_all, 0, sizeof(char)*NIC_NUM*NIC_NAME_LENTH_MAX);
+	while (fgets(line, sizeof(line)-1, fp) != NULL && NIC_cnt < NIC_NUM){
+        if (0 ==  NIC_cnt) {
+             ++NIC_cnt;
              continue; // 第一行为表头
         }
         //fprintf(fLog, "%s line:%s\n", __FUNCTION__, line);
 		result = strtok(line, delims);
 		if (NULL != result && strcmp(result, "lo") != 0){
             //fprintf(fLog, "%s NIC:%d, Name:%s\n", __FUNCTION__, i, result);
-			strncpy(NICs[i-1], result, strlen(result));
-			++i;
+			strncpy(NICs_all[NIC_cnt-1], result, strlen(result));
+			++NIC_cnt;
 		}
 	}
     pclose(fp);
+    fprintf(fLog, "%s NICs_all total:%d\n", __FUNCTION__, NIC_cnt-1);
+	// 查询网桥信息
+	if ((fp = popen(brctlShowCmd, "r")) == NULL){
+		fprintf(fLog, "%s popen brctl_show result is null.\n", __FUNCTION__);
+        return;
+	}
+	memset(NICs_br_brif, 0, sizeof(char)*NIC_NUM*NIC_NAME_LENTH_MAX);
+	while(fgets(line, sizeof(line)-1, fp) != NULL && NIC_br_cnt < NIC_NUM) {
+		if (0 == NIC_br_cnt) {
+			if (NULL == strstr(line, "bridge name")) {
+				fprintf(fLog, "%s brctl show result is error.\n", __FUNCTION__);
+				break;
+			}
+			++NIC_br_cnt;
+			continue; // 第一行为表头
+		}
+		j = 0;
+		result = strtok(line, "\t");
+		while (NULL != result && j < 4) {
+			if (0 == j || 3 == j) {
+				if (*(result+strlen(result)-1) == '\n' || *(result+strlen(result)-1) == '\r') {
+					strncpy(NICs_br_brif[NIC_br_cnt-1], result, strlen(result)-1);
+				} else {
+					strncpy(NICs_br_brif[NIC_br_cnt-1], result, strlen(result));
+				}
+                //fprintf(fLog, "%s NIC_br_Name:%s\n", __FUNCTION__, NICs_br_brif[NIC_br_cnt-1]);
+				++NIC_br_cnt;
+			}
+			++j;
+			result = strtok(NULL, "\t");
+		}
+	}
+	pclose(fp);
+    fprintf(fLog, "%s NICs_br_brif total:%d\n", __FUNCTION__, NIC_br_cnt-1);
+
+	// 将NIC中的网桥及网桥映射端口删除，赋值到NICs中
+	for(i = 0; i < NIC_cnt -1; ++i) {
+		for (j = 0; j < NIC_br_cnt -1; ++j){
+			if (strcmp(NICs_br_brif[j], NICs_all[i]) == 0) break;
+		}
+		if (j == NIC_br_cnt-1) {
+			strncpy(NICs[k], NICs_all[i], strlen(NICs_all[i]));
+			++k;
+		}
+	}
 }
 
 // 根据网卡名称，查找该网卡的ip地址
