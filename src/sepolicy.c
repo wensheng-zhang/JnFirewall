@@ -409,6 +409,11 @@ void QueryNICs(void){
 	}
     pclose(fp);
     fprintf(fLog, "%s NICs_all total:%d\n", __FUNCTION__, NIC_cnt-1);
+	if (NIC_cnt - 1 <= 0) {
+		fprintf(fLog, "%s No NIC is found.\n", __FUNCTION__);
+		return;
+	}
+
 	// 查询网桥信息
 	if ((fp = popen(brctlShowCmd, "r")) == NULL){
 		fprintf(fLog, "%s popen brctl_show result is null.\n", __FUNCTION__);
@@ -443,6 +448,7 @@ void QueryNICs(void){
 	pclose(fp);
     fprintf(fLog, "%s NICs_br_brif total:%d\n", __FUNCTION__, NIC_br_cnt-1);
 
+	strncpy(NICs[k++],"all", 3);
 	// 将NIC中的网桥及网桥映射端口删除，赋值到NICs中
 	for(i = 0; i < NIC_cnt -1; ++i) {
 		for (j = 0; j < NIC_br_cnt -1; ++j){
@@ -573,6 +579,7 @@ int AddTarget(const USER_RULE *target){
 	char dport[16] = {0};
 	char ports[64] = {0};
 	char mac[64] = {0};
+	char netport[16] = {0};
     char line[N];
 	FILE *fp = NULL;
 	if (NULL == target 
@@ -601,14 +608,17 @@ int AddTarget(const USER_RULE *target){
 		sprintf(ports, "-m %s %s %s", protocals[target->protocal], sport, dport);
 	}
     fprintf(fLog, "%s ports:%s, srcport:%d, dstport:%d\n", __FUNCTION__, ports, target->srcport, target->dstport);
-	//-m mac --mac-source ab:dc:ef:12:32:45
+	// -m mac --mac-source ab:dc:ef:12:32:45
 	if (strlen(target->srcmac) > 0) {
 		sprintf(mac, "-m mac --mac-source %s", target->srcmac);
 	}
-		
+	// -i eth0
+	if (strcmp(target->netport, "all") != 0 && strlen(target->netport) > 0) {
+		sprintf(netport, "-i %s", target->netport);
+	}
 //iptables -t filter -I FORWARD  -s 192.168.0.106 -d 10.1.0.5  -p tcp  -m tcp --sport 5555 --dport 6666 -m mac --mac-source ab:dc:ef:12:32:45 -i enp3s0  -j ACCEPT
-	sprintf(command, "iptables -t filter -I FORWARD %s %s -p %s %s %s -i %s -j %s", 
-		srcip, dstip, protocals[target->protocal], ports, mac, target->netport, pktProcs[target->pktProc]);
+	sprintf(command, "iptables -t filter -I FORWARD %s %s -p %s %s %s %s -j %s",
+		srcip, dstip, protocals[target->protocal], ports, mac, netport, pktProcs[target->pktProc]);
 	if((fp = popen(command, "r")) == NULL){
         fprintf(fLog, "%s %s =>popen fail.\n", __FUNCTION__, command);
         return -1;
