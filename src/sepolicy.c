@@ -41,6 +41,7 @@ FILE *fLog = NULL;
 static char NICs[NIC_NUM][NIC_NAME_LENTH_MAX];
 
 void ShowForm();
+void ShowErrMsg(int actionRes);
 int Protocal();
 int PktProc();
 int IsValidIPV4(const char* ipv4);
@@ -56,6 +57,8 @@ void SavePermanently();
 
 
 int cgiMain() {
+	int actionRes = 0;
+	USER_RULE userRule;
 	/* Send the content type, letting the browser know this is HTML */
 	cgiHeaderContentType("text/html;charset=utf-8\n");
 	/* Top of the page */
@@ -66,9 +69,36 @@ int cgiMain() {
     fprintf(cgiOut, "<a href=\"sepolicy.cgi\" style=\"background-color:#AAAAFF\">安全策略</a>\n");
 	fLog = fopen("/tmp/log", "a");
     QueryNICs();
-	fprintf(fLog, "QueryNICs finish.\n");
-    /* Now show the form */
-	ShowForm();
+	if (cgiFormSubmitClicked("add") == cgiFormSuccess) {
+		// Add target
+	    memset(&userRule, 0, sizeof(USER_RULE));
+		GetUserInputData(&userRule);
+		fprintf(fLog, "protocal:%d, pktProc:%d, netport:%s, srcip:%s, srcport:%d, srcmac:%s, dstip:%s, dstport:%d, dstmac:%s\n",
+		    userRule.protocal, userRule.pktProc, userRule.netport, userRule.srcip, userRule.srcport, userRule.srcmac,
+		    userRule.dstip, userRule.dstport, userRule.dstmac);
+		if(AddTarget(&userRule) != 0) {
+			actionRes = 1;
+			fprintf(fLog, "%s AddTarget fail\n", __FUNCTION__);
+		}
+	} else if (cgiFormSubmitClicked("modify") == cgiFormSuccess) {
+		// Modify target
+	} else if (cgiFormSubmitClicked("delete") == cgiFormSuccess) {
+		// delete target
+		if (DeleteTargets() != 0) {
+			actionRes = 3;
+			fprintf(fLog, "%s DeleteTargets fail\n", __FUNCTION__);
+		}
+	} else if (cgiFormSubmitClicked("save") == cgiFormSuccess) {
+		// permanently preserve
+		SavePermanently();
+	}
+    switch (actionRes) {
+		case 1:
+		case 3: ShowErrMsg(actionRes); break;
+        case 0:
+		default:
+            ShowForm(); break;
+	}
 	/* Finish up the page */
 	fprintf(cgiOut, "</BODY></HTML>\n");
 	fclose(fLog);
@@ -107,7 +137,6 @@ int PktProc() {
 
 void ShowForm()
 {
-	USER_RULE userRule;
 	int i = 0;
 	
 	fprintf(cgiOut, "<!-- 2.0: multipart/form-data is required for file uploads. -->");
@@ -169,29 +198,6 @@ void ShowForm()
 	fprintf(cgiOut, "<input type=\"submit\" name=\"add\" value=\"添加\">\n");
 	//fprintf(cgiOut, "<input type=\"submit\" name=\"modify\" value=\"修改\">\n");
 	fprintf(cgiOut, "<hr/>\n");
-
-	if (cgiFormSubmitClicked("add") == cgiFormSuccess) {
-		// Add target
-	    memset(&userRule, 0, sizeof(USER_RULE));
-		GetUserInputData(&userRule);
-		fprintf(fLog, "protocal:%d, pktProc:%d, netport:%s, srcip:%s, srcport:%d, srcmac:%s, dstip:%s, dstport:%d, dstmac:%s\n",
-		    userRule.protocal, userRule.pktProc, userRule.netport, userRule.srcip, userRule.srcport, userRule.srcmac,
-		    userRule.dstip, userRule.dstport, userRule.dstmac);
-        fflush(fLog);
-		if(AddTarget(&userRule) != 0) {
-			fprintf(fLog, "%s AddTarget fail\n", __FUNCTION__);
-		}
-	} else if (cgiFormSubmitClicked("modify") == cgiFormSuccess) {
-		// Modify target
-	} else if (cgiFormSubmitClicked("delete") == cgiFormSuccess) {
-		// delete target
-		if (DeleteTargets() != 0) {
-			fprintf(fLog, "%s DeleteTargets fail\n", __FUNCTION__);
-		}
-	} else if (cgiFormSubmitClicked("save") == cgiFormSuccess) {
-		// permanently preserve
-		SavePermanently();
-	}
 	
 	// (4)规则列表
 	fprintf(cgiOut, "<p>\n");
@@ -203,6 +209,15 @@ void ShowForm()
 	fprintf(cgiOut, "<input type=\"submit\" name=\"save\" value=\"保存\">\n");
 
 	fprintf(cgiOut, "</form>\n");
+}
+
+void ShowErrMsg(int actionRes) {
+	fprintf(cgiOut, "<p>\n");
+	switch (actionRes) {
+		case 1: fprintf(cgiOut, "<font size=\"6\" color=\"red\">添加 错误!<font>\n"); break;
+		case 3: fprintf(cgiOut, "<font size=\"6\" color=\"red\">删除 错误!<font>\n"); break;
+		default: fprintf(cgiOut, "<font size=\"6\" color=\"red\">未知 错误!<font>\n"); break;
+	}
 }
 
 int IsValidIPV4(const char* ipv4){
