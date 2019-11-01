@@ -217,7 +217,7 @@ void ShowErrMsg(int actionRes) {
 		case 1: fprintf(cgiOut, "<font size=\"6\" color=\"red\">添加 错误!<font>\n"); break;
 		case 3: fprintf(cgiOut, "<font size=\"6\" color=\"red\">删除 错误!<font>\n"); break;
 		default: fprintf(cgiOut, "<font size=\"6\" color=\"red\">未知 错误!<font>\n"); break;
-	}
+	}	
 }
 
 int IsValidIPV4(const char* ipv4){
@@ -505,7 +505,7 @@ void QueryRules(void){
 		fprintf(cgiOut, "<tr>\n");
 		fprintf(cgiOut, "<td><input type=\"checkbox\" name=\"rule\" value=\"%d\"></td>\n", targetRules[j].seqNo);
 		fprintf(cgiOut, "<td>%d</td>\n", targetRules[j].seqNo);
-		fprintf(cgiOut, "<td>%s</td>\n", targetRules[j].target);
+		fprintf(cgiOut, "<td>%s</td>\n", strcmp(targetRules[j].target, "ACCEPT") == 0?"通过":"丢弃");
 		fprintf(cgiOut, "<td>%s</td>\n", targetRules[j].protocal);
 		fprintf(cgiOut, "<td>%s</td>\n", targetRules[j].netport);
 		fprintf(cgiOut, "<td>%s</td>\n", targetRules[j].srcip);
@@ -632,7 +632,7 @@ int AddTarget(const USER_RULE *target){
 		sprintf(netport, "-i %s", target->netport);
 	}
 //iptables -t filter -I FORWARD  -s 192.168.0.106 -d 10.1.0.5  -p tcp  -m tcp --sport 5555 --dport 6666 -m mac --mac-source ab:dc:ef:12:32:45 -i enp3s0  -j ACCEPT
-	sprintf(command, "iptables -t filter -I FORWARD %s %s -p %s %s %s %s -j %s",
+	sprintf(command, "iptables -t filter -A FORWARD %s %s -p %s %s %s %s -j %s",
 		srcip, dstip, protocals[target->protocal], ports, mac, netport, pktProcs[target->pktProc]);
 	if((fp = popen(command, "r")) == NULL){
         fprintf(fLog, "%s %s =>popen fail.\n", __FUNCTION__, command);
